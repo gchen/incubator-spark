@@ -18,6 +18,7 @@
 package org.apache.spark.rdd
 
 import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.util.~>
 
 
 private[spark]
@@ -34,4 +35,8 @@ class MapPartitionsRDD[U: ClassManifest, T: ClassManifest](
 
   override def compute(split: Partition, context: TaskContext) =
     f(firstParent[T].iterator(split, context))
+
+  override def mapDependencies(g: RDD ~> RDD) = new MapPartitionsRDD(g(prev), f)
+
+  reportCreation()
 }

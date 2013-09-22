@@ -801,3 +801,7 @@ private[spark] object Utils extends Logging {
     hashAbs
   }
 }
+
+trait ~>[F[_], G[_]] {
+  def apply[A](a: F[A]): G[A]
+}

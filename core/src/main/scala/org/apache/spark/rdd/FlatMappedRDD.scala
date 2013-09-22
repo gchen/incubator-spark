@@ -18,6 +18,7 @@
 package org.apache.spark.rdd
 
 import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.util.~>
 
 
 private[spark]
@@ -30,4 +31,8 @@ class FlatMappedRDD[U: ClassManifest, T: ClassManifest](
 
   override def compute(split: Partition, context: TaskContext) =
     firstParent[T].iterator(split, context).flatMap(f)
+
+  override def mapDependencies(g: RDD ~> RDD) = new FlatMappedRDD(g(prev), f)
+
+  reportCreation()
 }

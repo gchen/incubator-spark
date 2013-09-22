@@ -18,6 +18,7 @@
 package org.apache.spark.rdd
 
 import org.apache.spark.{OneToOneDependency, Partition, TaskContext}
+import org.apache.spark.util.~>
 
 private[spark] class FilteredRDD[T: ClassManifest](
     prev: RDD[T],
@@ -30,4 +31,8 @@ private[spark] class FilteredRDD[T: ClassManifest](
 
   override def compute(split: Partition, context: TaskContext) =
     firstParent[T].iterator(split, context).filter(f)
+
+  override def mapDependencies(g: RDD ~> RDD) = new FilteredRDD(g(prev), f)
+
+  reportCreation()
 }

@@ -861,6 +861,14 @@ class SparkContext(
   private[spark] def cleanup(cleanupTime: Long) {
     persistentRdds.clearOldValues(cleanupTime)
   }
+
+  private[spark] def updateRddId(id: Int) {
+    val delta = id - nextRddId.get + 1
+    if (delta > 0)
+      nextRddId.addAndGet(delta)
+  }
+
+  private[spark] def eventLogWriter = this.env.eventReporter.eventLogWriter
 }
 
 /**

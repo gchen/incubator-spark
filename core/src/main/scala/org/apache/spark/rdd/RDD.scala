@@ -18,6 +18,7 @@
 package org.apache.spark.rdd
 
 import java.util.Random
+import java.io.ObjectInputStream
 
 import scala.collection.Map
 import scala.collection.JavaConversions.mapAsScalaMap
@@ -39,6 +40,7 @@ import org.apache.spark.partial.GroupedCountEvaluator
 import org.apache.spark.partial.PartialResult
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.{Utils, BoundedPriorityQueue}
+import org.apache.spark.util.~>
 
 import org.apache.spark.SparkContext._
 import org.apache.spark._
@@ -86,6 +88,12 @@ abstract class RDD[T: ClassManifest](
   def compute(split: Partition, context: TaskContext): Iterator[T]
 
   /**
+   * Returns a new RDD whose parents are the result of applying `g` to this RDD's parents.  This
+   * makes it possible to transform the RDD dependency graph. 
+   */
+  def mapDependencies(g: RDD ~> RDD): RDD[T] = this
+
+  /**
    * Implemented by subclasses to return the set of partitions in this RDD. This method will only
    * be called once, so it is safe to implement a time-consuming computation in it.
    */
@@ -99,6 +107,11 @@ abstract class RDD[T: ClassManifest](
 
   /** Optionally overridden by subclasses to specify placement preferences. */
   protected def getPreferredLocations(split: Partition): Seq[String] = Nil
+
+  protected def reportCreation() {
+    for (env <- Option(SparkEnv.get))
+      env.eventReporter.reportRDDCreation(this, Thread.currentThread.getStackTrace)
+  }
 
   /** Optionally overridden by subclasses to specify how they are partitioned. */
   val partitioner: Option[Partitioner] = None
@@ -956,4 +969,12 @@ abstract class RDD[T: ClassManifest](
     new JavaRDD(this)(elementClassManifest)
   }
 
+  private def readObject(stream: ObjectInputStream) {
+    stream.defaultReadObject()
+
+    stream match {
+      case s: EventLogInputStream => sc = s.sc
+      case _ => ()
+    }
+  }
 }
