@@ -14,7 +14,7 @@ case class StopEventReporter() extends EventReporterMessage
 
 class EventReporterActor(eventLogWriter: EventLogWriter) extends DaemonActor with Logging {
   def act() {
-    val port = DebuggerOptions.masterPort
+    val port = Settings.masterPort
 
     RemoteActor.alive(port)
     RemoteActor.register('EventReporterActor, self)
@@ -35,8 +35,8 @@ class EventReporterActor(eventLogWriter: EventLogWriter) extends DaemonActor wit
 }
 
 class EventReporter(isMaster: Boolean) extends Logging {
-  val debuggerEnabled = DebuggerOptions.enabled
-  val checksumEnabled = DebuggerOptions.checksum
+  val debuggerEnabled = Settings.enabled
+  val checksumEnabled = Settings.checksum
 
   var eventLogWriter = if (isMaster && debuggerEnabled) Some(new EventLogWriter) else None
   var reporterActor = initReporterActor()
@@ -50,7 +50,7 @@ class EventReporter(isMaster: Boolean) extends Logging {
       }
 
     case (true, false) => {
-      val (host, port) = DebuggerOptions.masterAddress
+      val (host, port) = Settings.masterAddress
       Some(RemoteActor.select(Node(host, port), 'EventReporterActor))
     }
 

@@ -2,7 +2,7 @@ package org.apache.spark
 
 import com.typesafe.config.ConfigFactory
 
-object DebuggerOptions {
+object Settings {
   private[this] val config = ConfigFactory.load()
 
   val masterHost = config.getString("spark.master.host")

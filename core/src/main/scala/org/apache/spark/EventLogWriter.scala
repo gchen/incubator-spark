@@ -5,7 +5,7 @@ import scala.collection.immutable.HashSet
 import scala.collection.mutable.{ArrayBuffer, HashMap => MutableHashMap}
 
 class EventLogWriter extends Logging {
-  private[this] val eventLog = initEventLog(Option(DebuggerOptions.logPath))
+  private[this] val eventLog = initEventLog(Option(Settings.logPath))
   private[this] var eventLogReader: Option[EventLogReader] = None
 
   def initEventLog(eventLogPath: Option[String]) =
