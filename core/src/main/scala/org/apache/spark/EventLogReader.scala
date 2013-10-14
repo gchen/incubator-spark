@@ -6,20 +6,28 @@ import org.apache.spark.rdd.RDD
 import org.apache.spark.util._
 import org.apache.spark.scheduler.{Task, ResultTask, ShuffleMapTask}
 
-import scala.collection.mutable.{ArrayBuffer, HashMap => MutableHashMap}
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
 
 class EventLogReader(sc: SparkContext, eventLogPath: Option[String] = None) extends Logging {
   /** The `ObjectInputStream` created from the event log, from which events are loaded */
   private[this] val objectInputStream = initObjectInputStream()
 
-  /** Events loaded from the event log. */
-  private[this] val events = new ArrayBuffer[EventLogEntry]
+  private def initObjectInputStream() =
+    for {
+      path <- eventLogPath orElse Option(DebuggerOptions.logPath)
+      file = new File(path)
+      if file.exists
+    } yield new EventLogInputStream(new FileInputStream(file), sc)
 
   /** List of RDDs indexed by their canonical ID */
   private[this] val _rdds = new ArrayBuffer[RDD[_]]
 
   /** Map of RDD IDs to canonical RDD IDs (reverse of `_rdds`) */
-  private[this] val rddIdToCanonical = new MutableHashMap[Int, Int]
+  private[this] val rddIdToCanonical = new mutable.HashMap[Int, Int]
+
+  /** Events loaded from the event log. */
+  val events = new ArrayBuffer[EventLogEntry]
 
   loadEvents()
 
@@ -29,10 +37,11 @@ class EventLogReader(sc: SparkContext, eventLogPath: Option[String] = None) exte
   def rdds = _rdds.readOnly
 
   /** Lists all checksum mismatches */
-  def checksumMismatches: Seq[ChecksumEvent] = for {
-    writer <- sc.eventLogWriter.toList
-    mismatch <- writer.checksumMismatches
-  } yield mismatch
+  def checksumMismatches: Seq[ChecksumEvent] =
+    for {
+      writer <- sc.eventLogWriter.toSeq
+      mismatch <- writer.checksumMismatches
+    } yield mismatch
 
   /** Prints a human readable RDD list */
   def printRDDs() {
@@ -41,42 +50,39 @@ class EventLogReader(sc: SparkContext, eventLogPath: Option[String] = None) exte
   }
 
   /** List all tasks */
-  def tasks: Seq[Task[_]] = for {
-    TaskSubmission(tasks) <- events
-    task <- tasks
-  } yield task
+  def tasks: Seq[Task[_]] =
+    for {
+      TaskSubmission(tasks) <- events
+      task <- tasks
+    } yield task
 
   /** Finds all the tasks that were run to compute the given RDD */
-  def tasksForRDD(rdd: RDD[_]): Seq[Task[_]] = for {
-    task <- tasks
+  def tasksForRDD(rdd: RDD[_]): Seq[Task[_]] =
+    for {
+      task <- tasks
 
-    taskRDD <- task match {
-      case r: ResultTask[_, _] => Some(r.rdd)
-      case s: ShuffleMapTask => Some(s.rdd)
-      case _ => None
-    }
+      taskRDD <- task match {
+        case r: ResultTask[_, _] => Some(r.rdd)
+        case s: ShuffleMapTask => Some(s.rdd)
+        case _ => None
+      }
 
-    if taskRDD.id == rdd.id
-  } yield task
+      if taskRDD.id == rdd.id
+    } yield task
 
   /** Finds the task with given stage ID and partition */
-  def taskWithId(stageId: Int, partition: Int): Option[Task[_]] = (for {
-    task <- tasks
+  def taskWithId(stageId: Int, partition: Int): Option[Task[_]] =
+    (for {
+      task <- tasks
 
-    (taskStageId, taskPartition) <- task match {
-      case r: ResultTask[_, _] => Some((r.stageId, r.partition))
-      case s: ShuffleMapTask => Some((s.stageId, s.partition))
-      case _ => None
-    }
+      (taskStageId, taskPartition) <- task match {
+        case r: ResultTask[_, _] => Some((r.stageId, r.partition))
+        case s: ShuffleMapTask => Some((s.stageId, s.partition))
+        case _ => None
+      }
 
-    if (taskStageId, taskPartition) == (stageId, partition)
-  } yield task).headOption
-
-  private def initObjectInputStream() = for {
-    path <- eventLogPath orElse Option(System.getenv("SPARK_ARTHUR_LOGPATH"))
-    file = new File(path)
-    if file.exists
-  } yield new EventLogInputStream(new FileInputStream(file), sc)
+      if (taskStageId, taskPartition) == (stageId, partition)
+    } yield task).headOption
 
   def loadEvents() {
     for (in <- objectInputStream) {
@@ -100,6 +106,11 @@ class EventLogReader(sc: SparkContext, eventLogPath: Option[String] = None) exte
     }
   }
 
+  /**
+   * Append an event to the events collection.  All RDDs are extracted from `RDDCreation` events and stored.
+   *
+   * @param event The event to be appended
+   */
   private[spark] def appendEvent(event: EventLogEntry) {
     events += event
 
@@ -113,7 +124,7 @@ class EventLogReader(sc: SparkContext, eventLogPath: Option[String] = None) exte
     }
   }
 
-  private[spark] def replace[T: ClassManifest](rdd: RDD[T], newRDD: RDD[T]) {
+  def replace[T: ClassManifest](rdd: RDD[T], newRDD: RDD[T]) {
     val canonicalId = rddIdToCanonical(rdd.id)
 
     _rdds(canonicalId) = newRDD

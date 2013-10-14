@@ -19,6 +19,7 @@ package org.apache.spark.rdd
 
 import org.apache.spark.{OneToOneDependency, SparkContext, Partition, TaskContext}
 import java.io.{ObjectOutputStream, IOException}
+import org.apache.spark.util.~>
 
 private[spark] class ZippedPartitionsPartition(
     idx: Int,
@@ -89,6 +90,10 @@ class ZippedPartitionsRDD2[A: ClassManifest, B: ClassManifest, V: ClassManifest]
     rdd1 = null
     rdd2 = null
   }
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[V] = new ZippedPartitionsRDD2[A, B, V](sc, f, g(rdd1), g(rdd2))
+
+  reportCreation()
 }
 
 class ZippedPartitionsRDD3
@@ -113,6 +118,11 @@ class ZippedPartitionsRDD3
     rdd2 = null
     rdd3 = null
   }
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[V] =
+    new ZippedPartitionsRDD3[A, B, C, V](sc, f, g(rdd1), g(rdd2), g(rdd3))
+
+  reportCreation()
 }
 
 class ZippedPartitionsRDD4
@@ -140,4 +150,9 @@ class ZippedPartitionsRDD4
     rdd3 = null
     rdd4 = null
   }
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[V] =
+    new ZippedPartitionsRDD4[A, B, C, D, V](sc, f, g(rdd1), g(rdd2), g(rdd3), g(rdd4))
+
+  reportCreation()
 }

@@ -27,6 +27,7 @@ import org.apache.spark.Partition
 import org.apache.spark.SparkEnv
 import org.apache.spark.ShuffleDependency
 import org.apache.spark.OneToOneDependency
+import org.apache.spark.util.~>
 
 
 /**
@@ -125,4 +126,7 @@ private[spark] class SubtractedRDD[K: ClassManifest, V: ClassManifest, W: ClassM
     rdd2 = null
   }
 
+  override def mapDependencies(g: RDD ~> RDD): RDD[(K, V)] = new SubtractedRDD[K, V, W](g(rdd1), g(rdd2), part)
+
+  reportCreation()
 }

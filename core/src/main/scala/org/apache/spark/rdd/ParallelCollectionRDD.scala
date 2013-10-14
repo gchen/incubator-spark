@@ -24,7 +24,7 @@ import org.apache.spark._
 import java.io._
 import scala.Serializable
 import org.apache.spark.serializer.JavaSerializer
-import org.apache.spark.util.Utils
+import org.apache.spark.util.{~>, Utils}
 
 private[spark] class ParallelCollectionPartition[T: ClassManifest](
     var rddId: Long,
@@ -100,6 +100,10 @@ private[spark] class ParallelCollectionRDD[T: ClassManifest](
   override def getPreferredLocations(s: Partition): Seq[String] = {
     locationPrefs.getOrElse(s.index, Nil)
   }
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[T] = this
+
+  reportCreation()
 }
 
 private object ParallelCollectionRDD {

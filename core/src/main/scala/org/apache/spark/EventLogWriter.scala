@@ -2,10 +2,10 @@ package org.apache.spark
 
 import java.io.{File, FileOutputStream}
 import scala.collection.immutable.HashSet
-import scala.collection.mutable.{ArrayBuffer, HashMap => MutableHashMap}
+import scala.collection.mutable
 
 class EventLogWriter extends Logging {
-  private[this] val eventLog = initEventLog(Option(Settings.logPath))
+  private[this] val eventLog: Option[EventLogOutputStream] = initEventLog(Option(DebuggerOptions.logPath))
   private[this] var eventLogReader: Option[EventLogReader] = None
 
   def initEventLog(eventLogPath: Option[String]) =
@@ -15,8 +15,8 @@ class EventLogWriter extends Logging {
       if !file.exists
     } yield new EventLogOutputStream(new FileOutputStream(file))
 
-  val checksums = new MutableHashMap[Any, HashSet[ChecksumEvent]]
-  val checksumMismatches = new ArrayBuffer[ChecksumEvent]
+  val checksums = new mutable.HashMap[Any, HashSet[ChecksumEvent]]
+  val checksumMismatches = new mutable.ArrayBuffer[ChecksumEvent]
 
   def log(entry: EventLogEntry) {
     for (log <- eventLog)

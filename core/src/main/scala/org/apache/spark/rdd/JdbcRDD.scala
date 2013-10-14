@@ -20,11 +20,9 @@ package org.apache.spark.rdd
 import java.sql.{Connection, ResultSet}
 
 import org.apache.spark.{Logging, Partition, SparkContext, TaskContext}
-import org.apache.spark.util.NextIterator
+import org.apache.spark.util.{~>, NextIterator}
 
-private[spark] class JdbcPartition(idx: Int, val lower: Long, val upper: Long) extends Partition {
-  override def index = idx
-}
+private[spark] class JdbcPartition(val index: Int, val lower: Long, val upper: Long) extends Partition
 
 /**
  * An RDD that executes an SQL query on a JDBC connection and reads results.
@@ -111,6 +109,10 @@ class JdbcRDD[T: ClassManifest](
       }
     }
   }
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[T] = this
+
+  reportCreation()
 }
 
 object JdbcRDD {

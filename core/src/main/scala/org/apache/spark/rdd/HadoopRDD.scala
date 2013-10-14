@@ -27,7 +27,7 @@ import org.apache.hadoop.mapred.Reporter
 import org.apache.hadoop.util.ReflectionUtils
 
 import org.apache.spark.{Logging, Partition, SerializableWritable, SparkContext, SparkEnv, TaskContext}
-import org.apache.spark.util.NextIterator
+import org.apache.spark.util.{~>, NextIterator}
 import org.apache.hadoop.conf.{Configuration, Configurable}
 
 
@@ -128,4 +128,8 @@ class HadoopRDD[K, V](
   }
 
   def getConf: Configuration = confBroadcast.value.value
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[(K, V)] = this
+
+  reportCreation()
 }

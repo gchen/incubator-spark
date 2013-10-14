@@ -19,10 +19,9 @@ package org.apache.spark.rdd
 
 import org.apache.spark.{SparkContext, SparkEnv, Partition, TaskContext}
 import org.apache.spark.storage.BlockManager
+import org.apache.spark.util.~>
 
-private[spark] class BlockRDDPartition(val blockId: String, idx: Int) extends Partition {
-  val index = idx
-}
+private[spark] class BlockRDDPartition(val blockId: String, val index: Int) extends Partition
 
 private[spark]
 class BlockRDD[T: ClassManifest](sc: SparkContext, @transient blockIds: Array[String])
@@ -47,5 +46,8 @@ class BlockRDD[T: ClassManifest](sc: SparkContext, @transient blockIds: Array[St
   override def getPreferredLocations(split: Partition): Seq[String] = {
     locations_(split.asInstanceOf[BlockRDDPartition].blockId)
   }
-}
 
+  override def mapDependencies(g: RDD ~> RDD): RDD[T] = this
+
+  reportCreation()
+}

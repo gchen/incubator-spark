@@ -19,7 +19,7 @@ package org.apache.spark.rdd
 
 import java.io.{ObjectOutputStream, IOException}
 import org.apache.spark._
-
+import org.apache.spark.util.~>
 
 private[spark]
 class CartesianPartition(
@@ -29,6 +29,7 @@ class CartesianPartition(
     s1Index: Int,
     s2Index: Int
   ) extends Partition {
+
   var s1 = rdd1.partitions(s1Index)
   var s2 = rdd2.partitions(s2Index)
   override val index: Int = idx
@@ -50,15 +51,17 @@ class CartesianRDD[T: ClassManifest, U:ClassManifest](
   extends RDD[Pair[T, U]](sc, Nil)
   with Serializable {
 
-  val numPartitionsInRdd2 = rdd2.partitions.size
+  private[this] val numPartitionsInRdd2 = rdd2.partitions.size
 
   override def getPartitions: Array[Partition] = {
     // create the cross product split
     val array = new Array[Partition](rdd1.partitions.size * rdd2.partitions.size)
+
     for (s1 <- rdd1.partitions; s2 <- rdd2.partitions) {
-      val idx = s1.index * numPartitionsInRdd2 + s2.index
-      array(idx) = new CartesianPartition(idx, rdd1, rdd2, s1.index, s2.index)
+      val index = s1.index * numPartitionsInRdd2 + s2.index
+      array(index) = new CartesianPartition(index, rdd1, rdd2, s1.index, s2.index)
     }
+
     array
   }
 
@@ -87,4 +90,8 @@ class CartesianRDD[T: ClassManifest, U:ClassManifest](
     rdd1 = null
     rdd2 = null
   }
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[(T, U)] = new CartesianRDD[T, U](sc, g(rdd1), g(rdd2))
+
+  reportCreation()
 }

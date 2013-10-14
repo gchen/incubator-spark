@@ -127,7 +127,7 @@ private[spark] class Executor(
     if (localDirs.isEmpty()) {
       throw new Exception("Yarn Local dirs can't be empty")
     }
-    return localDirs
+    localDirs
   }
 
   class TaskRunner(context: ExecutorBackend, taskId: Long, serializedTask: ByteBuffer)
@@ -145,12 +145,14 @@ private[spark] class Executor(
       def getTotalGCTime = ManagementFactory.getGarbageCollectorMXBeans.map(g => g.getCollectionTime).sum
       val startGCTime = getTotalGCTime
 
+      var task: Task[Any] = null
+
       try {
         SparkEnv.set(env)
         Accumulators.clear()
         val (taskFiles, taskJars, taskBytes) = Task.deserializeWithDependencies(serializedTask)
         updateDependencies(taskFiles, taskJars)
-        val task = ser.deserialize[Task[Any]](taskBytes, Thread.currentThread.getContextClassLoader)
+        task = ser.deserialize[Task[Any]](taskBytes, Thread.currentThread.getContextClassLoader)
         attemptedTask = Some(task)
         logInfo("Its epoch is " + task.epoch)
         env.mapOutputTracker.updateEpoch(task.epoch)
@@ -175,6 +177,7 @@ private[spark] class Executor(
           return
         }
         context.statusUpdate(taskId, TaskState.FINISHED, serializedResult)
+        SparkEnv.get.eventReporter.reportTaskChecksum(task, result, serializedResult)
         logInfo("Finished task ID " + taskId)
       } catch {
         case ffe: FetchFailedException => {
@@ -191,6 +194,7 @@ private[spark] class Executor(
           }
           val reason = ExceptionFailure(t.getClass.getName, t.toString, t.getStackTrace, metrics)
           context.statusUpdate(taskId, TaskState.FAILED, ser.serialize(reason))
+          env.eventReporter.reportException(t, task)
 
           // TODO: Should we exit the whole executor here? On the one hand, the failed task may
           // have left some weird state around depending on when the exception was thrown, but on
@@ -207,7 +211,7 @@ private[spark] class Executor(
    * created by the interpreter to the search path
    */
   private def createClassLoader(): ExecutorURLClassLoader = {
-    var loader = this.getClass.getClassLoader
+    val loader = this.getClass.getClassLoader
 
     // For each of the jars in the jarSet, add them to the class loader.
     // We assume each of the files has already been fetched.
@@ -229,7 +233,7 @@ private[spark] class Executor(
         val klass = Class.forName("org.apache.spark.repl.ExecutorClassLoader")
           .asInstanceOf[Class[_ <: ClassLoader]]
         val constructor = klass.getConstructor(classOf[String], classOf[ClassLoader])
-        return constructor.newInstance(classUri, parent)
+        constructor.newInstance(classUri, parent)
       } catch {
         case _: ClassNotFoundException =>
           logError("Could not find org.apache.spark.repl.ExecutorClassLoader on classpath!")
@@ -237,7 +241,7 @@ private[spark] class Executor(
           null
       }
     } else {
-      return parent
+      parent
     }
   }
 

@@ -27,6 +27,7 @@ import scala.io.Source
 
 import org.apache.spark.{SparkEnv, Partition, TaskContext}
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.util.~>
 
 
 /**
@@ -110,6 +111,11 @@ class PipedRDD[T: ClassManifest](
       }
     }
   }
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[String] =
+    new PipedRDD[T](g(prev), command, envVars, printPipeContext, printRDDElement)
+
+  reportCreation()
 }
 
 object PipedRDD {

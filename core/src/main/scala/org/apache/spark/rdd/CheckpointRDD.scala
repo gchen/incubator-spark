@@ -18,15 +18,11 @@
 package org.apache.spark.rdd
 
 import org.apache.spark._
-import org.apache.hadoop.mapred.{FileInputFormat, SequenceFileInputFormat, JobConf, Reporter}
-import org.apache.hadoop.conf.Configuration
-import org.apache.hadoop.io.{NullWritable, BytesWritable}
-import org.apache.hadoop.util.ReflectionUtils
 import org.apache.hadoop.fs.Path
-import java.io.{File, IOException, EOFException}
-import java.text.NumberFormat
+import java.io.IOException
+import org.apache.spark.util.~>
 
-private[spark] class CheckpointRDDPartition(val index: Int) extends Partition {}
+private[spark] class CheckpointRDDPartition(val index: Int) extends Partition
 
 /**
  * This RDD represents a RDD checkpoint file (similar to HadoopRDD).
@@ -72,6 +68,10 @@ class CheckpointRDD[T: ClassManifest](sc: SparkContext, val checkpointPath: Stri
   override def checkpoint() {
     // Do nothing. CheckpointRDD should not be checkpointed.
   }
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[T] = this
+
+  reportCreation()
 }
 
 private[spark] object CheckpointRDD extends Logging {
@@ -149,7 +149,7 @@ private[spark] object CheckpointRDD extends Logging {
     sc.runJob(rdd, CheckpointRDD.writeToFile(path.toString, 1024) _)
     val cpRDD = new CheckpointRDD[Int](sc, path.toString)
     assert(cpRDD.partitions.length == rdd.partitions.length, "Number of partitions is not the same")
-    assert(cpRDD.collect.toList == rdd.collect.toList, "Data of partitions not the same")
+    assert(cpRDD.collect().toList == rdd.collect().toList, "Data of partitions not the same")
     fs.delete(path, true)
   }
 }

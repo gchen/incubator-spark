@@ -20,6 +20,7 @@ package org.apache.spark.rdd
 import scala.collection.mutable.ArrayBuffer
 import org.apache.spark.{Dependency, RangeDependency, SparkContext, Partition, TaskContext}
 import java.io.{ObjectOutputStream, IOException}
+import org.apache.spark.util.~>
 
 private[spark] class UnionPartition[T: ClassManifest](idx: Int, rdd: RDD[T], splitIndex: Int)
   extends Partition {
@@ -70,4 +71,8 @@ class UnionRDD[T: ClassManifest](
 
   override def getPreferredLocations(s: Partition): Seq[String] =
     s.asInstanceOf[UnionPartition[T]].preferredLocations()
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[T] = new UnionRDD[T](sc, rdds.map(g(_)))
+
+  reportCreation()
 }

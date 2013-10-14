@@ -18,6 +18,7 @@
 package org.apache.spark.rdd
 
 import org.apache.spark.{TaskContext, Partition}
+import org.apache.spark.util.~>
 
 
 private[spark]
@@ -33,4 +34,8 @@ class FlatMappedValuesRDD[K, V, U](prev: RDD[_ <: Product2[K, V]], f: V => Trave
       f(v).map(x => (k, x))
     }
   }
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[(K, U)] = new FlatMappedValuesRDD[K, V, U](g(prev), f)
+
+  reportCreation()
 }

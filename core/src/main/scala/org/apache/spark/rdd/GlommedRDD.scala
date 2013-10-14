@@ -18,6 +18,7 @@
 package org.apache.spark.rdd
 
 import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.util.~>
 
 private[spark] class GlommedRDD[T: ClassManifest](prev: RDD[T])
   extends RDD[Array[T]](prev) {
@@ -26,4 +27,8 @@ private[spark] class GlommedRDD[T: ClassManifest](prev: RDD[T])
 
   override def compute(split: Partition, context: TaskContext) =
     Array(firstParent[T].iterator(split, context).toArray).iterator
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[Array[T]] = new GlommedRDD[T](g(prev))
+
+  reportCreation()
 }

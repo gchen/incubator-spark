@@ -25,6 +25,7 @@ import scala.collection.mutable.ArrayBuffer
 
 import org.apache.spark.{Partition, Partitioner, SparkEnv, TaskContext}
 import org.apache.spark.{Dependency, OneToOneDependency, ShuffleDependency}
+import org.apache.spark.util.~>
 
 
 private[spark] sealed trait CoGroupSplitDep extends Serializable
@@ -46,12 +47,10 @@ private[spark] case class NarrowCoGroupSplitDep(
 private[spark] case class ShuffleCoGroupSplitDep(shuffleId: Int) extends CoGroupSplitDep
 
 private[spark]
-class CoGroupPartition(idx: Int, val deps: Array[CoGroupSplitDep])
+class CoGroupPartition(val index: Int, val deps: Array[CoGroupSplitDep])
   extends Partition with Serializable {
-  override val index: Int = idx
-  override def hashCode(): Int = idx
+  override def hashCode(): Int = index
 }
-
 
 /**
  * A RDD that cogroups its parents. For each key k in parent RDDs, the resulting RDD contains a
@@ -141,4 +140,8 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[_ <: Product2[K, _]]], part: 
     super.clearDependencies()
     rdds = null
   }
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[(K, Seq[Seq[_]])] = new CoGroupedRDD[K](rdds.map(g(_)), part)
+
+  reportCreation()
 }

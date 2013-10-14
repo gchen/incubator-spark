@@ -18,6 +18,7 @@
 package org.apache.spark.rdd
 
 import org.apache.spark.{NarrowDependency, SparkEnv, Partition, TaskContext}
+import org.apache.spark.util.~>
 
 
 class PartitionPruningRDDPartition(idx: Int, val parentSplit: Partition) extends Partition {
@@ -57,6 +58,10 @@ class PartitionPruningRDD[T: ClassManifest](
 
   override protected def getPartitions: Array[Partition] =
     getDependencies.head.asInstanceOf[PruneDependency[T]].partitions
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[T] = new PartitionPruningRDD[T](g(prev), partitionFilterFunc)
+
+  reportCreation()
 }
 
 

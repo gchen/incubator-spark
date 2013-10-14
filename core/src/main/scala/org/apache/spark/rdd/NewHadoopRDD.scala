@@ -25,6 +25,7 @@ import org.apache.hadoop.io.Writable
 import org.apache.hadoop.mapreduce._
 
 import org.apache.spark.{Dependency, Logging, Partition, SerializableWritable, SparkContext, TaskContext}
+import org.apache.spark.util.~>
 
 
 private[spark]
@@ -122,5 +123,9 @@ class NewHadoopRDD[K, V](
   }
 
   def getConf: Configuration = confBroadcast.value.value
+
+  override def mapDependencies(g: RDD ~> RDD): RDD[(K, V)] = this
+
+  reportCreation()
 }
 

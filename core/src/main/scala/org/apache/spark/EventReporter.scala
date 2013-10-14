@@ -7,6 +7,7 @@ import scala.actors.Actor._
 import scala.actors._
 import scala.actors.remote._
 import scala.util.MurmurHash
+import java.nio.ByteBuffer
 
 sealed trait EventReporterMessage
 case class LogEvent(entry: EventLogEntry) extends EventReporterMessage
@@ -14,7 +15,7 @@ case class StopEventReporter() extends EventReporterMessage
 
 class EventReporterActor(eventLogWriter: EventLogWriter) extends DaemonActor with Logging {
   def act() {
-    val port = Settings.masterPort
+    val port = DebuggerOptions.masterPort
 
     RemoteActor.alive(port)
     RemoteActor.register('EventReporterActor, self)
@@ -35,8 +36,8 @@ class EventReporterActor(eventLogWriter: EventLogWriter) extends DaemonActor wit
 }
 
 class EventReporter(isMaster: Boolean) extends Logging {
-  val debuggerEnabled = Settings.enabled
-  val checksumEnabled = Settings.checksum
+  val debuggerEnabled = DebuggerOptions.enabled
+  val checksumEnabled = DebuggerOptions.checksum
 
   var eventLogWriter = if (isMaster && debuggerEnabled) Some(new EventLogWriter) else None
   var reporterActor = initReporterActor()
@@ -50,7 +51,7 @@ class EventReporter(isMaster: Boolean) extends Logging {
       }
 
     case (true, false) => {
-      val (host, port) = Settings.masterAddress
+      val (host, port) = DebuggerOptions.masterAddress
       Some(RemoteActor.select(Node(host, port), 'EventReporterActor))
     }
 
@@ -82,13 +83,13 @@ class EventReporter(isMaster: Boolean) extends Logging {
       writer.log(TaskSubmission(tasks))
   }
 
-  def reportTaskChecksum(task: Task[_], result: TaskResult[_], serializedResult: Array[Byte]) {
+  def reportTaskChecksum(task: Task[_], result: TaskResult[_], serializedResult: ByteBuffer) {
     if (checksumEnabled) {
       val checksum = new MurmurHash[Byte](42)
 
       task match {
         case r: ResultTask[_, _] =>
-          for (byte <- serializedResult)
+          for (byte <- serializedResult.array())
             checksum(byte)
 
           val serializedFunc = Utils.serialize(r.func)
