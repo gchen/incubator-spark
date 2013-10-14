@@ -1,13 +1,15 @@
 package org.apache.spark
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.scheduler.{ResultTask, ShuffleMapTask, Task, TaskResult}
+import org.apache.spark.scheduler._
 import org.apache.spark.util.Utils
 import scala.actors.Actor._
 import scala.actors._
 import scala.actors.remote._
 import scala.util.MurmurHash
 import java.nio.ByteBuffer
+import scala.Some
+import scala.actors.remote.Node
 
 sealed trait EventReporterMessage
 case class LogEvent(entry: EventLogEntry) extends EventReporterMessage
@@ -83,7 +85,7 @@ class EventReporter(isMaster: Boolean) extends Logging {
       writer.log(TaskSubmission(tasks))
   }
 
-  def reportTaskChecksum(task: Task[_], result: TaskResult[_], serializedResult: ByteBuffer) {
+  def reportTaskChecksum(task: Task[_], result: DirectTaskResult[_], serializedResult: ByteBuffer) {
     if (checksumEnabled) {
       val checksum = new MurmurHash[Byte](42)
 
