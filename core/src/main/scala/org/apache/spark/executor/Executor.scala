@@ -185,7 +185,7 @@ private[spark] class Executor(
           }
         }
         context.statusUpdate(taskId, TaskState.FINISHED, serializedResult)
-        SparkEnv.get.eventReporter.reportTaskChecksum(task, directResult, serializedResult)
+        env.eventReporter.reportTaskChecksum(task, directResult, serializedResult)
         logInfo("Finished task ID " + taskId)
       } catch {
         case ffe: FetchFailedException => {
