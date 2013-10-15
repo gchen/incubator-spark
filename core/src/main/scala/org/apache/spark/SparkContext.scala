@@ -755,10 +755,11 @@ class SparkContext(
       allowLocal: Boolean,
       resultHandler: (Int, U) => Unit) {
     val callSite = Utils.formatSparkCallSite
+    val cleanedFunc = clean(func)
     logInfo("Starting job: " + callSite)
     val start = System.nanoTime
-    val result = dagScheduler.runJob(rdd, func, partitions, callSite, allowLocal, resultHandler,
-      localProperties.get)
+    val result = dagScheduler.runJob(rdd, cleanedFunc, partitions, callSite, allowLocal,
+      resultHandler, localProperties.get)
     logInfo("Job finished: " + callSite + ", took " + (System.nanoTime - start) / 1e9 + " s")
     rdd.doCheckpoint()
     result
@@ -845,6 +846,36 @@ class SparkContext(
       localProperties.get)
     logInfo("Job finished: " + callSite + ", took " + (System.nanoTime - start) / 1e9 + " s")
     result
+  }
+
+  /**
+   * Submit a job for execution and return a FutureJob holding the result.
+   */
+  def submitJob[T, U, R](
+      rdd: RDD[T],
+      processPartition: Iterator[T] => U,
+      partitions: Seq[Int],
+      resultHandler: (Int, U) => Unit,
+      resultFunc: => R): SimpleFutureAction[R] =
+  {
+    val cleanF = clean(processPartition)
+    val callSite = Utils.formatSparkCallSite
+    val waiter = dagScheduler.submitJob(
+      rdd,
+      (context: TaskContext, iter: Iterator[T]) => cleanF(iter),
+      partitions,
+      callSite,
+      allowLocal = false,
+      resultHandler,
+      null)
+    new SimpleFutureAction(waiter, resultFunc)
+  }
+
+  /**
+   * Cancel all jobs that have been scheduled or are running.
+   */
+  def cancelAllJobs() {
+    dagScheduler.cancelAllJobs()
   }
 
   /**
@@ -937,6 +968,8 @@ object SparkContext {
 
   implicit def rddToPairRDDFunctions[K: ClassManifest, V: ClassManifest](rdd: RDD[(K, V)]) =
     new PairRDDFunctions(rdd)
+
+  implicit def rddToAsyncRDDActions[T: ClassManifest](rdd: RDD[T]) = new AsyncRDDActions(rdd)
 
   implicit def rddToSequenceFileRDDFunctions[K <% Writable: ClassManifest, V <% Writable: ClassManifest](
       rdd: RDD[(K, V)]) =

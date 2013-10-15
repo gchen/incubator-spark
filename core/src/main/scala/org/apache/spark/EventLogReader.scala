@@ -76,8 +76,8 @@ class EventLogReader(sc: SparkContext, eventLogPath: Option[String] = None) exte
       task <- tasks
 
       (taskStageId, taskPartition) <- task match {
-        case r: ResultTask[_, _] => Some((r.stageId, r.partition))
-        case s: ShuffleMapTask => Some((s.stageId, s.partition))
+        case r: ResultTask[_, _] => Some((r.stageId, r.partitionId))
+        case s: ShuffleMapTask => Some((s.stageId, s.partitionId))
         case _ => None
       }
 

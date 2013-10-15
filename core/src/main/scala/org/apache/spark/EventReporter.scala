@@ -102,7 +102,7 @@ class EventReporter(isMaster: Boolean) extends Logging {
 
           for (actor <- reporterActor)
             actor !! LogEvent(ResultTaskChecksum(
-                r.rdd.id, r.partition, funcChecksum.hash, checksum.hash))
+                r.rdd.id, r.partitionId, funcChecksum.hash, checksum.hash))
 
         case s: ShuffleMapTask =>
           val serializedAccumUpdates = Utils.serialize(result.accumUpdates)
@@ -111,7 +111,7 @@ class EventReporter(isMaster: Boolean) extends Logging {
             checksum(byte)
 
           for (actor <- reporterActor)
-            actor !! LogEvent(ShuffleMapTaskChecksum(s.rdd.id, s.partition, checksum.hash))
+            actor !! LogEvent(ShuffleMapTaskChecksum(s.rdd.id, s.partitionId, checksum.hash))
 
         case _ =>
           logWarning("Unknown task type: " + task)
