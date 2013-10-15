@@ -21,6 +21,7 @@ import org.apache.spark.{Logging, SparkContext}
 import org.apache.spark.deploy.client.{Client, ClientListener}
 import org.apache.spark.deploy.{Command, ApplicationDescription}
 import org.apache.spark.util.Utils
+import org.apache.spark.executor.StandaloneExecutorBackend
 
 private[spark] class SparkDeploySchedulerBackend(
     scheduler: ClusterScheduler,
@@ -46,7 +47,7 @@ private[spark] class SparkDeploySchedulerBackend(
       StandaloneSchedulerBackend.ACTOR_NAME)
     val args = Seq(driverUrl, "{{EXECUTOR_ID}}", "{{HOSTNAME}}", "{{CORES}}")
     val command = Command(
-      "org.apache.spark.executor.StandaloneExecutorBackend", args, sc.executorEnvs)
+      StandaloneExecutorBackend.getClass.getCanonicalName, args, sc.executorEnvs)
     val sparkHome = sc.getSparkHome().getOrElse(null)
     val appDesc = new ApplicationDescription(appName, maxCores, executorMemory, command, sparkHome,
         "http://" + sc.ui.appUIAddress)
