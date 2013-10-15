@@ -167,7 +167,7 @@ private[spark] class Executor(
         }
         //TODO I'd also like to track the time it takes to serialize the task results, but that is huge headache, b/c
         // we need to serialize the task metrics first.  If TaskMetrics had a custom serialized format, we could
-        // just change the relevants bytes in the byte buffer
+        // just change the relevant bytes in the byte buffer
         val accumUpdates = Accumulators.values
         val directResult = new DirectTaskResult(value, accumUpdates, task.metrics.getOrElse(null))
         val serializedDirectResult = ser.serialize(directResult)
