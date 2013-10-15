@@ -20,14 +20,13 @@ package org.apache.spark.scheduler
 import java.io._
 import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 
-import scala.collection.mutable.HashMap
-
 import org.apache.spark._
 import org.apache.spark.executor.ShuffleWriteMetrics
 import org.apache.spark.storage._
 import org.apache.spark.util.{MetadataCleanerType, TimeStampedHashMap, MetadataCleaner}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.rdd.RDDCheckpointData
+import scala.collection.mutable
 
 
 private[spark] object ShuffleMapTask {
@@ -71,11 +70,11 @@ private[spark] object ShuffleMapTask {
   }
 
   // Since both the JarSet and FileSet have the same format this is used for both.
-  def deserializeFileSet(bytes: Array[Byte]) : HashMap[String, Long] = {
+  def deserializeFileSet(bytes: Array[Byte]) : mutable.HashMap[String, Long] = {
     val in = new GZIPInputStream(new ByteArrayInputStream(bytes))
     val objIn = new ObjectInputStream(in)
     val set = objIn.readObject().asInstanceOf[Array[(String, Long)]].toMap
-    return (HashMap(set.toSeq: _*))
+    mutable.HashMap(set.toSeq: _*)
   }
 
   def clearCache() {
@@ -167,7 +166,7 @@ private[spark] class ShuffleMapTask(
       shuffleMetrics.shuffleBytesWritten = totalBytes
       metrics.get.shuffleWriteMetrics = Some(shuffleMetrics)
 
-      return new MapStatus(blockManager.blockManagerId, compressedSizes)
+      new MapStatus(blockManager.blockManagerId, compressedSizes)
     } catch { case e: Exception =>
       // If there is an exception from running the task, revert the partial writes
       // and throw the exception upstream to Spark.

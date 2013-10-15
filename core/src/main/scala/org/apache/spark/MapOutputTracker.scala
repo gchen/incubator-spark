@@ -20,20 +20,15 @@ package org.apache.spark
 import java.io._
 import java.util.zip.{GZIPInputStream, GZIPOutputStream}
 
-import scala.collection.mutable.HashMap
-import scala.collection.mutable.HashSet
-
 import akka.actor._
 import akka.dispatch._
 import akka.pattern.ask
-import akka.remote._
 import akka.util.Duration
-
 
 import org.apache.spark.scheduler.MapStatus
 import org.apache.spark.storage.BlockManagerId
 import org.apache.spark.util.{MetadataCleanerType, Utils, MetadataCleaner, TimeStampedHashMap}
-
+import scala.collection.mutable
 
 private[spark] sealed trait MapOutputTrackerMessage
 private[spark] case class GetMapOutputStatuses(shuffleId: Int, requester: String)
@@ -60,7 +55,7 @@ private[spark] class MapOutputTracker extends Logging {
   // Set to the MapOutputTrackerActor living on the driver
   var trackerActor: ActorRef = _
 
-  private var mapStatuses = new TimeStampedHashMap[Int, Array[MapStatus]]
+  private val mapStatuses = new TimeStampedHashMap[Int, Array[MapStatus]]
 
   // Incremented every time a fetch fails so that client nodes know to clear
   // their cache of map output locations if this happens.
@@ -78,7 +73,7 @@ private[spark] class MapOutputTracker extends Logging {
   def askTracker(message: Any): Any = {
     try {
       val future = trackerActor.ask(message)(timeout)
-      return Await.result(future, timeout)
+      Await.result(future, timeout)
     } catch {
       case e: Exception =>
         throw new SparkException("Error communicating with MapOutputTracker", e)
@@ -99,7 +94,7 @@ private[spark] class MapOutputTracker extends Logging {
   }
 
   def registerMapOutput(shuffleId: Int, mapId: Int, status: MapStatus) {
-    var array = mapStatuses(shuffleId)
+    val array = mapStatuses(shuffleId)
     array.synchronized {
       array(mapId) = status
     }
@@ -116,9 +111,9 @@ private[spark] class MapOutputTracker extends Logging {
   }
 
   def unregisterMapOutput(shuffleId: Int, mapId: Int, bmAddress: BlockManagerId) {
-    var arrayOpt = mapStatuses.get(shuffleId)
+    val arrayOpt = mapStatuses.get(shuffleId)
     if (arrayOpt.isDefined && arrayOpt.get != null) {
-      var array = arrayOpt.get
+      val array = arrayOpt.get
       array.synchronized {
         if (array(mapId) != null && array(mapId).location == bmAddress) {
           array(mapId) = null
@@ -131,7 +126,7 @@ private[spark] class MapOutputTracker extends Logging {
   }
 
   // Remembers which map output locations are currently being fetched on a worker
-  private val fetching = new HashSet[Int]
+  private val fetching = new mutable.HashSet[Int]
 
   // Called on possibly remote nodes to get the server URIs and output sizes for a given shuffle
   def getServerStatuses(shuffleId: Int, reduceId: Int): Array[(BlockManagerId, Long)] = {
@@ -261,7 +256,7 @@ private[spark] class MapOutputTracker extends Logging {
         cachedSerializedStatuses(shuffleId) = bytes
       }
     }
-    return bytes
+    bytes
   }
 
   // Serialize an array of map output locations into an efficient byte format so that we can send
@@ -332,7 +327,7 @@ private[spark] object MapOutputTracker {
     if (compressedSize == 0) {
       0
     } else {
-      math.pow(LOG_BASE, (compressedSize & 0xFF)).toLong
+      math.pow(LOG_BASE, compressedSize & 0xFF).toLong
     }
   }
 }
