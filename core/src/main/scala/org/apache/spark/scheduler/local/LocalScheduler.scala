@@ -179,6 +179,8 @@ private[spark] class LocalScheduler(threads: Int, val maxFailures: Int, val sc: 
     def getTotalGCTime = ManagementFactory.getGarbageCollectorMXBeans.map(g => g.getCollectionTime).sum
     val startGCTime = getTotalGCTime
 
+    var deserializedTask: Task[_] = null
+
     try {
       Accumulators.clear()
       Thread.currentThread().setContextClassLoader(classLoader)
@@ -187,7 +189,7 @@ private[spark] class LocalScheduler(threads: Int, val maxFailures: Int, val sc: 
       // this adds a bit of unnecessary overhead but matches how the Mesos Executor works.
       val (taskFiles, taskJars, taskBytes) = Task.deserializeWithDependencies(bytes)
       updateDependencies(taskFiles, taskJars)   // Download any files added with addFile
-      val deserializedTask = ser.deserialize[Task[_]](
+      deserializedTask = ser.deserialize[Task[_]](
         taskBytes, Thread.currentThread.getContextClassLoader)
       attemptedTask = Some(deserializedTask)
       val deserTime = System.currentTimeMillis() - start
@@ -224,6 +226,7 @@ private[spark] class LocalScheduler(threads: Int, val maxFailures: Int, val sc: 
         }
         val failure = new ExceptionFailure(t.getClass.getName, t.toString, t.getStackTrace, metrics)
         localActor ! LocalStatusUpdate(taskId, TaskState.FAILED, ser.serialize(failure))
+        env.eventReporter.reportLocalException(t, deserializedTask)
       }
     }
   }
