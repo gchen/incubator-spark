@@ -21,14 +21,13 @@ import org.apache.spark.{Logging, SparkContext}
 import org.apache.spark.deploy.client.{Client, ClientListener}
 import org.apache.spark.deploy.{Command, ApplicationDescription}
 import org.apache.spark.util.Utils
-import org.apache.spark.executor.StandaloneExecutorBackend
 
 private[spark] class SparkDeploySchedulerBackend(
     scheduler: ClusterScheduler,
     sc: SparkContext,
     masters: Array[String],
     appName: String)
-  extends StandaloneSchedulerBackend(scheduler, sc.env.actorSystem)
+  extends CoarseGrainedSchedulerBackend(scheduler, sc.env.actorSystem)
   with ClientListener
   with Logging {
 
@@ -44,10 +43,10 @@ private[spark] class SparkDeploySchedulerBackend(
     // The endpoint for executors to talk to us
     val driverUrl = "akka://spark@%s:%s/user/%s".format(
       System.getProperty("spark.driver.host"), System.getProperty("spark.driver.port"),
-      StandaloneSchedulerBackend.ACTOR_NAME)
+      CoarseGrainedSchedulerBackend.ACTOR_NAME)
     val args = Seq(driverUrl, "{{EXECUTOR_ID}}", "{{HOSTNAME}}", "{{CORES}}")
     val command = Command(
-      StandaloneExecutorBackend.getClass.getCanonicalName, args, sc.executorEnvs)
+      CoarseGrainedSchedulerBackend.getClass.getCanonicalName, args, sc.executorEnvs)
     val sparkHome = sc.getSparkHome().getOrElse(null)
     val appDesc = new ApplicationDescription(appName, maxCores, executorMemory, command, sparkHome,
         "http://" + sc.ui.appUIAddress)
