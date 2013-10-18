@@ -39,7 +39,7 @@ private[spark] class ZippedPartitionsPartition(
 }
 
 abstract class ZippedPartitionsBaseRDD[V: ClassManifest](
-    sc: SparkContext,
+    @transient sc: SparkContext,
     var rdds: Seq[RDD[_]])
   extends RDD[V](sc, rdds.map(x => new OneToOneDependency(x))) {
 
@@ -74,7 +74,7 @@ abstract class ZippedPartitionsBaseRDD[V: ClassManifest](
 }
 
 class ZippedPartitionsRDD2[A: ClassManifest, B: ClassManifest, V: ClassManifest](
-    sc: SparkContext,
+    @transient sc: SparkContext,
     f: (Iterator[A], Iterator[B]) => Iterator[V],
     var rdd1: RDD[A],
     var rdd2: RDD[B])
@@ -98,7 +98,7 @@ class ZippedPartitionsRDD2[A: ClassManifest, B: ClassManifest, V: ClassManifest]
 
 class ZippedPartitionsRDD3
   [A: ClassManifest, B: ClassManifest, C: ClassManifest, V: ClassManifest](
-    sc: SparkContext,
+    @transient sc: SparkContext,
     f: (Iterator[A], Iterator[B], Iterator[C]) => Iterator[V],
     var rdd1: RDD[A],
     var rdd2: RDD[B],
@@ -127,7 +127,7 @@ class ZippedPartitionsRDD3
 
 class ZippedPartitionsRDD4
   [A: ClassManifest, B: ClassManifest, C: ClassManifest, D:ClassManifest, V: ClassManifest](
-    sc: SparkContext,
+    @transient sc: SparkContext,
     f: (Iterator[A], Iterator[B], Iterator[C], Iterator[D]) => Iterator[V],
     var rdd1: RDD[A],
     var rdd2: RDD[B],
