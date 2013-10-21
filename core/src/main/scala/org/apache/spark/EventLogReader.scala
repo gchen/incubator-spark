@@ -71,8 +71,8 @@ class EventLogReader(sc: SparkContext, eventLogPath: Option[String] = None) exte
     } yield task
 
   /** Finds the task with given stage ID and partition */
-  def taskWithId(stageId: Int, partition: Int): Option[Task[_]] =
-    (for {
+  def taskWithId(stageId: Int, partition: Int): Option[Task[_]] = {
+    val candidates = for {
       task <- tasks
 
       (taskStageId, taskPartition) <- task match {
@@ -82,7 +82,10 @@ class EventLogReader(sc: SparkContext, eventLogPath: Option[String] = None) exte
       }
 
       if (taskStageId, taskPartition) == (stageId, partition)
-    } yield task).headOption
+    } yield task
+
+    candidates.headOption
+  }
 
   def loadEvents() {
     for (in <- objectInputStream) {
