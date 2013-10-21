@@ -5,15 +5,18 @@ import scala.collection.immutable.HashSet
 import scala.collection.mutable
 
 class EventLogWriter extends Logging {
-  private[this] val eventLog: Option[EventLogOutputStream] = initEventLog(Option(DebuggerOptions.logPath))
+  private[this] var eventLog: Option[EventLogOutputStream] = _
   private[this] var eventLogReader: Option[EventLogReader] = None
 
-  def initEventLog(eventLogPath: Option[String]) =
-    for {
+  initEventLog(Option(DebuggerOptions.logPath))
+
+  def initEventLog(eventLogPath: Option[String]) {
+    eventLog = for {
       path <- eventLogPath
       file = new File(path)
       if !file.exists
     } yield new EventLogOutputStream(new FileOutputStream(file))
+  }
 
   val checksums = new mutable.HashMap[Any, HashSet[ChecksumEvent]]
   val checksumMismatches = new mutable.ArrayBuffer[ChecksumEvent]

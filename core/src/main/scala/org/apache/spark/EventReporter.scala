@@ -37,14 +37,14 @@ class EventReporterActor(eventLogWriter: EventLogWriter) extends DaemonActor wit
   }
 }
 
-class EventReporter(isMaster: Boolean) extends Logging {
-  val debuggerEnabled = DebuggerOptions.enabled
-  val checksumEnabled = DebuggerOptions.checksum
+class EventReporter(isDriver: Boolean) extends Logging {
+  var debuggerEnabled = DebuggerOptions.enabled
+  var checksumEnabled = DebuggerOptions.checksum
 
-  var eventLogWriter = if (isMaster && debuggerEnabled) Some(new EventLogWriter) else None
+  var eventLogWriter = if (isDriver && debuggerEnabled) Some(new EventLogWriter) else None
   var reporterActor = initReporterActor()
 
-  private[this] def initReporterActor() = (debuggerEnabled, isMaster) match {
+  def initReporterActor() = (debuggerEnabled, isDriver) match {
     case (true, true) =>
       for (writer <- eventLogWriter) yield {
         val actor = new EventReporterActor(writer)
