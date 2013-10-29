@@ -46,10 +46,12 @@ private[spark] case class NarrowCoGroupSplitDep(
 private[spark] case class ShuffleCoGroupSplitDep(shuffleId: Int) extends CoGroupSplitDep
 
 private[spark]
-class CoGroupPartition(val index: Int, val deps: Array[CoGroupSplitDep])
+class CoGroupPartition(idx: Int, val deps: Array[CoGroupSplitDep])
   extends Partition with Serializable {
-  override def hashCode(): Int = index
+  override val index: Int = idx
+  override def hashCode(): Int = idx
 }
+
 
 /**
  * A RDD that cogroups its parents. For each key k in parent RDDs, the resulting RDD contains a

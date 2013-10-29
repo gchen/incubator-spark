@@ -41,7 +41,7 @@ class MapPartitionsWithContextRDD[U: ClassManifest, T: ClassManifest](
     f(context, firstParent[T].iterator(split, context))
 
   override def mapDependencies(g: RDD ~> RDD): RDD[U] =
-    new MapPartitionsWithContextRDD[U, T](g(prev), f, preservesPartitioning)
+    new MapPartitionsWithContextRDD[U, T](g(firstParent), f, preservesPartitioning)
 
   reportCreation()
 }

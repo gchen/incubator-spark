@@ -59,7 +59,8 @@ class PartitionPruningRDD[T: ClassManifest](
   override protected def getPartitions: Array[Partition] =
     getDependencies.head.asInstanceOf[PruneDependency[T]].partitions
 
-  override def mapDependencies(g: RDD ~> RDD): RDD[T] = new PartitionPruningRDD[T](g(prev), partitionFilterFunc)
+  override def mapDependencies(g: RDD ~> RDD): RDD[T] =
+    new PartitionPruningRDD[T](g(firstParent), partitionFilterFunc)
 
   reportCreation()
 }

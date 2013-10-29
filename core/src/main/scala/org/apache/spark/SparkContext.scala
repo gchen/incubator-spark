@@ -964,8 +964,6 @@ class SparkContext(
     if (delta > 0)
       nextRddId.addAndGet(delta)
   }
-
-  private[spark] def eventLogWriter = this.env.eventReporter.eventLogWriter
 }
 
 /**

@@ -66,7 +66,7 @@ class ShuffledRDD[K, V, P <: Product2[K, V] : ClassManifest](
     prev = null
   }
 
-  override def mapDependencies(g: RDD ~> RDD): RDD[P] = new ShuffledRDD[K, V, P](g(prev), part)
+  override def mapDependencies(g: RDD ~> RDD): RDD[P] = new ShuffledRDD[K, V, P](g(firstParent), part)
 
   reportCreation()
 }

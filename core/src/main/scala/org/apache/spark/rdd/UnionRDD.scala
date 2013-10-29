@@ -42,7 +42,7 @@ private[spark] class UnionPartition[T: ClassManifest](idx: Int, rdd: RDD[T], spl
 }
 
 class UnionRDD[T: ClassManifest](
-    @transient sc: SparkContext,
+    sc: SparkContext,
     @transient var rdds: Seq[RDD[T]])
   extends RDD[T](sc, Nil) {  // Nil since we implement getDependencies
 
@@ -72,7 +72,7 @@ class UnionRDD[T: ClassManifest](
   override def getPreferredLocations(s: Partition): Seq[String] =
     s.asInstanceOf[UnionPartition[T]].preferredLocations()
 
-  override def mapDependencies(g: RDD ~> RDD): RDD[T] = new UnionRDD[T](sc, rdds.map(g(_)))
+  override def mapDependencies(g: RDD ~> RDD): RDD[T] = new UnionRDD[T](context, rdds.map(g(_)))
 
   reportCreation()
 }

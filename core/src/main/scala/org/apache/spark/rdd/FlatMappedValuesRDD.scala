@@ -35,7 +35,8 @@ class FlatMappedValuesRDD[K, V, U](prev: RDD[_ <: Product2[K, V]], f: V => Trave
     }
   }
 
-  override def mapDependencies(g: RDD ~> RDD): RDD[(K, U)] = new FlatMappedValuesRDD[K, V, U](g(prev), f)
+  override def mapDependencies(g: RDD ~> RDD): RDD[(K, U)] =
+    new FlatMappedValuesRDD[K, V, U](g(firstParent[(K, V)]), f)
 
   reportCreation()
 }

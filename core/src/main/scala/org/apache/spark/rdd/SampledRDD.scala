@@ -61,11 +61,12 @@ class SampledRDD[T: ClassManifest](
       }
     } else { // Sampling without replacement
       val rand = new Random(split.seed)
-      firstParent[T].iterator(split.prev, context).filter(x => rand.nextDouble <= frac)
+      firstParent[T].iterator(split.prev, context).filter(x => (rand.nextDouble <= frac))
     }
   }
 
-  override def mapDependencies(g: RDD ~> RDD): RDD[T] = new SampledRDD[T](g(prev), withReplacement, frac, seed)
+  override def mapDependencies(g: RDD ~> RDD): RDD[T] =
+    new SampledRDD[T](g(firstParent), withReplacement, frac, seed)
 
   reportCreation()
 }

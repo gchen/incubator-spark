@@ -39,7 +39,7 @@ private[spark] class ZippedPartitionsPartition(
 }
 
 abstract class ZippedPartitionsBaseRDD[V: ClassManifest](
-    @transient sc: SparkContext,
+    sc: SparkContext,
     var rdds: Seq[RDD[_]])
   extends RDD[V](sc, rdds.map(x => new OneToOneDependency(x))) {
 
@@ -74,7 +74,7 @@ abstract class ZippedPartitionsBaseRDD[V: ClassManifest](
 }
 
 class ZippedPartitionsRDD2[A: ClassManifest, B: ClassManifest, V: ClassManifest](
-    @transient sc: SparkContext,
+    sc: SparkContext,
     f: (Iterator[A], Iterator[B]) => Iterator[V],
     var rdd1: RDD[A],
     var rdd2: RDD[B])
@@ -91,14 +91,15 @@ class ZippedPartitionsRDD2[A: ClassManifest, B: ClassManifest, V: ClassManifest]
     rdd2 = null
   }
 
-  override def mapDependencies(g: RDD ~> RDD): RDD[V] = new ZippedPartitionsRDD2[A, B, V](sc, f, g(rdd1), g(rdd2))
+  override def mapDependencies(g: RDD ~> RDD): RDD[V] =
+    new ZippedPartitionsRDD2[A, B, V](context, f, g(rdd1), g(rdd2))
 
   reportCreation()
 }
 
 class ZippedPartitionsRDD3
   [A: ClassManifest, B: ClassManifest, C: ClassManifest, V: ClassManifest](
-    @transient sc: SparkContext,
+    sc: SparkContext,
     f: (Iterator[A], Iterator[B], Iterator[C]) => Iterator[V],
     var rdd1: RDD[A],
     var rdd2: RDD[B],
@@ -120,14 +121,14 @@ class ZippedPartitionsRDD3
   }
 
   override def mapDependencies(g: RDD ~> RDD): RDD[V] =
-    new ZippedPartitionsRDD3[A, B, C, V](sc, f, g(rdd1), g(rdd2), g(rdd3))
+    new ZippedPartitionsRDD3[A, B, C, V](context, f, g(rdd1), g(rdd2), g(rdd3))
 
   reportCreation()
 }
 
 class ZippedPartitionsRDD4
   [A: ClassManifest, B: ClassManifest, C: ClassManifest, D:ClassManifest, V: ClassManifest](
-    @transient sc: SparkContext,
+    sc: SparkContext,
     f: (Iterator[A], Iterator[B], Iterator[C], Iterator[D]) => Iterator[V],
     var rdd1: RDD[A],
     var rdd2: RDD[B],
@@ -152,7 +153,7 @@ class ZippedPartitionsRDD4
   }
 
   override def mapDependencies(g: RDD ~> RDD): RDD[V] =
-    new ZippedPartitionsRDD4[A, B, C, D, V](sc, f, g(rdd1), g(rdd2), g(rdd3), g(rdd4))
+    new ZippedPartitionsRDD4[A, B, C, D, V](context, f, g(rdd1), g(rdd2), g(rdd3), g(rdd4))
 
   reportCreation()
 }

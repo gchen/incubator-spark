@@ -84,7 +84,7 @@ class ZippedRDD[T: ClassManifest, U: ClassManifest](
     rdd2 = null
   }
 
-  override def mapDependencies(g: RDD ~> RDD): RDD[(T, U)] = new ZippedRDD[T, U](sc, g(rdd1), g(rdd2))
+  override def mapDependencies(g: RDD ~> RDD): RDD[(T, U)] = new ZippedRDD[T, U](context, g(rdd1), g(rdd2))
 
   reportCreation()
 }

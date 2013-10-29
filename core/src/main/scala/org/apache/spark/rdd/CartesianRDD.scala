@@ -51,17 +51,15 @@ class CartesianRDD[T: ClassManifest, U:ClassManifest](
   extends RDD[Pair[T, U]](sc, Nil)
   with Serializable {
 
-  private[this] val numPartitionsInRdd2 = rdd2.partitions.size
+  val numPartitionsInRdd2 = rdd2.partitions.size
 
   override def getPartitions: Array[Partition] = {
     // create the cross product split
     val array = new Array[Partition](rdd1.partitions.size * rdd2.partitions.size)
-
     for (s1 <- rdd1.partitions; s2 <- rdd2.partitions) {
-      val index = s1.index * numPartitionsInRdd2 + s2.index
-      array(index) = new CartesianPartition(index, rdd1, rdd2, s1.index, s2.index)
+      val idx = s1.index * numPartitionsInRdd2 + s2.index
+      array(idx) = new CartesianPartition(idx, rdd1, rdd2, s1.index, s2.index)
     }
-
     array
   }
 
@@ -91,7 +89,7 @@ class CartesianRDD[T: ClassManifest, U:ClassManifest](
     rdd2 = null
   }
 
-  override def mapDependencies(g: RDD ~> RDD): RDD[(T, U)] = new CartesianRDD[T, U](sc, g(rdd1), g(rdd2))
+  override def mapDependencies(g: RDD ~> RDD): RDD[(T, U)] = new CartesianRDD[T, U](context, g(rdd1), g(rdd2))
 
   reportCreation()
 }

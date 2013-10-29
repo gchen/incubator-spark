@@ -15,8 +15,6 @@ class ReduceAssertionRDD[T: ClassManifest](
 
   protected def getPartitions: Array[Partition] = prev.partitions
 
-  override def mapDependencies(g: ~>[RDD, RDD]): RDD[T] = new ReduceAssertionRDD(g(prev), reducer, assertion)
-
   class ReducingIterator(underlying: Iterator[T], split: Partition) extends Iterator[T] {
     def hasNext: Boolean = underlying.hasNext
 
@@ -43,6 +41,9 @@ class ReduceAssertionRDD[T: ClassManifest](
         SparkEnv.get.eventReporter.reportAssertionFailure(failure)
     }
   }
+
+  override def mapDependencies(g: ~>[RDD, RDD]): RDD[T] =
+    new ReduceAssertionRDD(g(firstParent), reducer, assertion)
 
   reportCreation()
 }

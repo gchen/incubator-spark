@@ -33,7 +33,8 @@ class MappedValuesRDD[K, V, U](prev: RDD[_ <: Product2[K, V]], f: V => U)
     firstParent[Product2[K, V]].iterator(split, context).map { case Product2(k ,v) => (k, f(v)) }
   }
 
-  override def mapDependencies(g: RDD ~> RDD): RDD[(K, U)] = new MappedValuesRDD[K, V, U](g(prev), f)
+  override def mapDependencies(g: RDD ~> RDD): RDD[(K, U)] =
+    new MappedValuesRDD[K, V, U](g(firstParent[(K, V)]), f)
 
   reportCreation()
 }

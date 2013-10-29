@@ -29,7 +29,7 @@ class MappedRDD[U: ClassManifest, T: ClassManifest](prev: RDD[T], f: T => U)
   override def compute(split: Partition, context: TaskContext) =
     firstParent[T].iterator(split, context).map(f)
 
-  override def mapDependencies(g: RDD ~> RDD) = new MappedRDD(g(prev), f)
+  override def mapDependencies(g: RDD ~> RDD) = new MappedRDD(g(firstParent[T]), f)
 
   reportCreation()
 }

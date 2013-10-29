@@ -1004,7 +1004,7 @@ abstract class RDD[T: ClassManifest](
     stream.defaultReadObject()
 
     stream match {
-      case s: EventLogInputStream => sc = s.sc
+      case s: EventLogInputStream => sc = s.context
       case _ => ()
     }
   }

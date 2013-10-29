@@ -32,7 +32,7 @@ class FlatMappedRDD[U: ClassManifest, T: ClassManifest](
   override def compute(split: Partition, context: TaskContext) =
     firstParent[T].iterator(split, context).flatMap(f)
 
-  override def mapDependencies(g: RDD ~> RDD) = new FlatMappedRDD(g(prev), f)
+  override def mapDependencies(g: RDD ~> RDD) = new FlatMappedRDD(g(firstParent[T]), f)
 
   reportCreation()
 }

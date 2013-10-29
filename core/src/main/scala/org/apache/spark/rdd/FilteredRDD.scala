@@ -32,7 +32,7 @@ private[spark] class FilteredRDD[T: ClassManifest](
   override def compute(split: Partition, context: TaskContext) =
     firstParent[T].iterator(split, context).filter(f)
 
-  override def mapDependencies(g: RDD ~> RDD) = new FilteredRDD(g(prev), f)
+  override def mapDependencies(g: RDD ~> RDD) = new FilteredRDD(g(firstParent), f)
 
   reportCreation()
 }

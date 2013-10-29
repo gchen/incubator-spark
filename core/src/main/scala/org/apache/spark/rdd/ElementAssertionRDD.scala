@@ -16,7 +16,8 @@ class ElementAssertionRDD[T: ClassManifest](
     }
   }
 
-  override def mapDependencies(g: RDD ~> RDD): RDD[T] = new ElementAssertionRDD[T](g(prev), elementAssertion)
+  override def mapDependencies(g: RDD ~> RDD): RDD[T] =
+    new ElementAssertionRDD[T](g(firstParent), elementAssertion)
 
   protected def getPartitions: Array[Partition] = prev.partitions
 

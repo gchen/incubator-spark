@@ -31,7 +31,7 @@ class EventLogReader(sc: SparkContext, eventLogPath: Option[String] = None) exte
 
   loadEvents()
 
-  for (writer <- sc.eventLogWriter)
+  for (writer <- sc.env.eventReporter.eventLogWriter)
     writer.registerEventLogReader(this)
 
   def rdds = _rdds.readOnly
@@ -39,7 +39,7 @@ class EventLogReader(sc: SparkContext, eventLogPath: Option[String] = None) exte
   /** Lists all checksum mismatches */
   def checksumMismatches: Seq[ChecksumEvent] =
     for {
-      writer <- sc.eventLogWriter.toSeq
+      writer <- sc.env.eventReporter.eventLogWriter.toSeq
       mismatch <- writer.checksumMismatches
     } yield mismatch
 
@@ -96,7 +96,7 @@ class EventLogReader(sc: SparkContext, eventLogPath: Option[String] = None) exte
 
           event match {
             case c: ChecksumEvent =>
-              for (writer <- sc.eventLogWriter)
+              for (writer <- sc.env.eventReporter.eventLogWriter)
                 writer.processChecksumEvent(c)
 
             case _ => ()

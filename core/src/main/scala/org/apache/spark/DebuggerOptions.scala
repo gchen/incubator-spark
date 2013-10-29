@@ -1,16 +1,11 @@
 package org.apache.spark
 
-import com.typesafe.config.ConfigFactory
-
 object DebuggerOptions {
-  private[this] val config = ConfigFactory.load()
+  def driverHost = System.getProperty("spark.driver.host")
+  def driverPort = System.getProperty("spark.driver.port").toInt
+  def driverAddress = (driverHost, driverPort)
 
-  val masterHost = config.getString("spark.master.host")
-  val masterPort = config.getInt("spark.master.port")
-  val masterAddress = (masterHost, masterPort)
-  val masterWebUIPort = config.getInt("spark.master.webui.port")
-
-  val enabled = config.getBoolean("spark.debugger.enabled")
-  val checksum = config.getBoolean("spark.debugger.checksum")
-  val logPath = config.getString("spark.debugger.logPath")
+  def enabled = System.getProperty("spark.debugger.enabled", "true").toBoolean
+  def checksum = System.getProperty("spark.debugger.checksum", "true").toBoolean
+  def logPath = System.getProperty("spark.debugger.logPath")
 }

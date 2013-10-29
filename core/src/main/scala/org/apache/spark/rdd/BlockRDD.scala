@@ -21,7 +21,9 @@ import org.apache.spark.{SparkContext, SparkEnv, Partition, TaskContext}
 import org.apache.spark.storage.{BlockId, BlockManager}
 import org.apache.spark.util.~>
 
-private[spark] class BlockRDDPartition(val blockId: BlockId, val index: Int) extends Partition
+private[spark] class BlockRDDPartition(val blockId: BlockId, idx: Int) extends Partition {
+  val index = idx
+}
 
 private[spark]
 class BlockRDD[T: ClassManifest](sc: SparkContext, @transient blockIds: Array[BlockId])

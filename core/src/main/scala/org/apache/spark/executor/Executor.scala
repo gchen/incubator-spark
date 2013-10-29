@@ -247,7 +247,7 @@ private[spark] class Executor(
         }
 
         execBackend.statusUpdate(taskId, TaskState.FINISHED, serializedResult)
-        env.eventReporter.reportTaskChecksum(task, directResult, serializedResult)
+//        env.eventReporter.reportTaskChecksum(task, directResult, serializedResult)
         logInfo("Finished task ID " + taskId)
       } catch {
         case ffe: FetchFailedException => {
@@ -264,7 +264,7 @@ private[spark] class Executor(
           }
           val reason = ExceptionFailure(t.getClass.getName, t.toString, t.getStackTrace, metrics)
           execBackend.statusUpdate(taskId, TaskState.FAILED, ser.serialize(reason))
-          env.eventReporter.reportException(t, task)
+//          env.eventReporter.reportException(t, task)
 
           // TODO: Should we exit the whole executor here? On the one hand, the failed task may
           // have left some weird state around depending on when the exception was thrown, but on

@@ -113,7 +113,7 @@ class PipedRDD[T: ClassManifest](
   }
 
   override def mapDependencies(g: RDD ~> RDD): RDD[String] =
-    new PipedRDD[T](g(prev), command, envVars, printPipeContext, printRDDElement)
+    new PipedRDD[T](g(firstParent), command, envVars, printPipeContext, printRDDElement)
 
   reportCreation()
 }

@@ -28,7 +28,7 @@ private[spark] class GlommedRDD[T: ClassManifest](prev: RDD[T])
   override def compute(split: Partition, context: TaskContext) =
     Array(firstParent[T].iterator(split, context).toArray).iterator
 
-  override def mapDependencies(g: RDD ~> RDD): RDD[Array[T]] = new GlommedRDD[T](g(prev))
+  override def mapDependencies(g: RDD ~> RDD): RDD[Array[T]] = new GlommedRDD[T](g(firstParent))
 
   reportCreation()
 }

@@ -95,7 +95,7 @@ class EventLogOutputStream(out: OutputStream) extends ObjectOutputStream(out)
 
 class EventLogInputStream(
     in: InputStream,
-    val sc: SparkContext)
+    val context: SparkContext)
   extends ObjectInputStream(in) {
 
   override def resolveClass(desc: ObjectStreamClass) =

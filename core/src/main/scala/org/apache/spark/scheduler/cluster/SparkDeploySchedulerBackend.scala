@@ -20,6 +20,7 @@ package org.apache.spark.scheduler.cluster
 import org.apache.spark.{Logging, SparkContext}
 import org.apache.spark.deploy.client.{Client, ClientListener}
 import org.apache.spark.deploy.{Command, ApplicationDescription}
+import scala.collection.mutable.HashMap
 import org.apache.spark.util.Utils
 
 private[spark] class SparkDeploySchedulerBackend(
@@ -46,7 +47,7 @@ private[spark] class SparkDeploySchedulerBackend(
       CoarseGrainedSchedulerBackend.ACTOR_NAME)
     val args = Seq(driverUrl, "{{EXECUTOR_ID}}", "{{HOSTNAME}}", "{{CORES}}")
     val command = Command(
-      CoarseGrainedSchedulerBackend.getClass.getCanonicalName, args, sc.executorEnvs)
+      "org.apache.spark.executor.CoarseGrainedExecutorBackend", args, sc.executorEnvs)
     val sparkHome = sc.getSparkHome().getOrElse(null)
     val appDesc = new ApplicationDescription(appName, maxCores, executorMemory, command, sparkHome,
         "http://" + sc.ui.appUIAddress)
