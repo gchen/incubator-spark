@@ -89,10 +89,13 @@ private[spark] class ParallelCollectionRDD[T: ClassManifest](
   // instead.
   // UPDATE: A parallel collection can be checkpointed to HDFS, which achieves this goal.
 
-  override def getPartitions: Array[Partition] = {
-    val slices = ParallelCollectionRDD.slice(data, numSlices).toArray
+  @transient
+  private var splits: Array[Partition] = {
+    val slices = ParallelCollectionRDD.slice(data, numSlices)
     slices.indices.map(i => new ParallelCollectionPartition(id, i, slices(i))).toArray
   }
+
+  override def getPartitions: Array[Partition] = splits
 
   override def compute(s: Partition, context: TaskContext) = {
     new InterruptibleIterator(context, s.asInstanceOf[ParallelCollectionPartition[T]].iterator)
@@ -100,6 +103,25 @@ private[spark] class ParallelCollectionRDD[T: ClassManifest](
 
   override def getPreferredLocations(s: Partition): Seq[String] = {
     locationPrefs.getOrElse(s.index, Nil)
+  }
+
+  override protected def getDependencies = Nil
+
+  private def writeObject(stream: ObjectOutputStream) {
+    stream.defaultWriteObject()
+    stream match {
+      case _: EventLogOutputStream => stream.writeObject(splits)
+      case _ =>
+    }
+  }
+
+  private def readObject(stream: ObjectInputStream) {
+    stream.defaultReadObject()
+    stream match {
+      case _: EventLogInputStream =>
+        splits = stream.readObject().asInstanceOf[Array[Partition]]
+      case _ =>
+    }
   }
 
   override def mapDependencies(g: RDD ~> RDD): RDD[T] = this
