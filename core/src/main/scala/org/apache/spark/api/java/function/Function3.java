@@ -15,22 +15,22 @@
  * limitations under the License.
  */
 
-package org.apache.spark.scheduler
+package org.apache.spark.api.java.function;
 
-import scala.collection._
+import scala.reflect.ClassManifest;
+import scala.reflect.ClassManifest$;
+import scala.runtime.AbstractFunction2;
 
-import org.apache.spark.executor.TaskMetrics
+import java.io.Serializable;
 
-class StageInfo(
-    stage: Stage,
-    val taskInfos: mutable.Buffer[(TaskInfo, TaskMetrics)] = mutable.Buffer[(TaskInfo, TaskMetrics)]()
-) {
-  val stageId = stage.id
-  /** When this stage was submitted from the DAGScheduler to a TaskScheduler. */
-  var submissionTime: Option[Long] = None
-  var completionTime: Option[Long] = None
-  val rddName = stage.rdd.name
-  val name = stage.name
-  val numPartitions = stage.numPartitions
-  val numTasks = stage.numTasks
+/**
+ * A three-argument function that takes arguments of type T1, T2 and T3 and returns an R.
+ */
+public abstract class Function3<T1, T2, T3, R> extends WrappedFunction3<T1, T2, T3, R>
+        implements Serializable {
+
+    public ClassManifest<R> returnType() {
+        return (ClassManifest<R>) ClassManifest$.MODULE$.fromClass(Object.class);
+    }
 }
+

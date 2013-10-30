@@ -15,22 +15,20 @@
  * limitations under the License.
  */
 
-package org.apache.spark.scheduler
+package org.apache.spark.api.java.function
 
-import scala.collection._
+import scala.runtime.AbstractFunction3
 
-import org.apache.spark.executor.TaskMetrics
+/**
+ * Subclass of Function3 for ease of calling from Java. The main thing it does is re-expose the
+ * apply() method as call() and declare that it can throw Exception (since AbstractFunction3.apply
+ * isn't marked to allow that).
+ */
+private[spark] abstract class WrappedFunction3[T1, T2, T3, R]
+  extends AbstractFunction3[T1, T2, T3, R] {
+  @throws(classOf[Exception])
+  def call(t1: T1, t2: T2, t3: T3): R
 
-class StageInfo(
-    stage: Stage,
-    val taskInfos: mutable.Buffer[(TaskInfo, TaskMetrics)] = mutable.Buffer[(TaskInfo, TaskMetrics)]()
-) {
-  val stageId = stage.id
-  /** When this stage was submitted from the DAGScheduler to a TaskScheduler. */
-  var submissionTime: Option[Long] = None
-  var completionTime: Option[Long] = None
-  val rddName = stage.rdd.name
-  val name = stage.name
-  val numPartitions = stage.numPartitions
-  val numTasks = stage.numTasks
+  final def apply(t1: T1, t2: T2, t3: T3): R = call(t1, t2, t3)
 }
+
