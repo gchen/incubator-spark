@@ -247,7 +247,7 @@ private[spark] class Executor(
         }
 
         execBackend.statusUpdate(taskId, TaskState.FINISHED, serializedResult)
-//        env.eventReporter.reportTaskChecksum(task, directResult, serializedResult)
+        env.eventReporter.reportTaskChecksum(task, directResult, serializedResult)
         logInfo("Finished task ID " + taskId)
       } catch {
         case ffe: FetchFailedException => {
