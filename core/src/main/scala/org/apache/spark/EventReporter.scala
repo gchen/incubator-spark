@@ -1,43 +1,38 @@
 package org.apache.spark
 
+import akka.actor._
+import akka.pattern._
+import akka.util.Timeout
+import akka.util.duration._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler._
 import org.apache.spark.util.Utils
-import scala.actors.Actor._
-import scala.actors._
-import scala.actors.remote._
 import scala.util.MurmurHash
 import java.nio.ByteBuffer
-import scala.Some
-import scala.actors.remote.Node
+import akka.dispatch.Await
 
 sealed trait EventReporterMessage
 case class LogEvent(entry: EventLogEntry) extends EventReporterMessage
 case class StopEventReporter() extends EventReporterMessage
 
-class EventReporterActor(eventLogWriter: EventLogWriter) extends DaemonActor with Logging {
-  def act() {
-    val port = DebuggerOptions.driverPort
+class EventReporterActor(eventLogWriter: EventLogWriter) extends Actor with Logging {
+  override def receive = {
+    case LogEvent(entry) =>
+      eventLogWriter.log(entry)
 
-    RemoteActor.alive(port)
-    RemoteActor.register('EventReporterActor, self)
-
-    logInfo("Registered actor on port " + port)
-
-    loop {
-      react {
-        case LogEvent(entry) =>
-          eventLogWriter.log(entry)
-
-        case StopEventReporter =>
-          eventLogWriter.stop()
-          reply('OK)
-      }
-    }
+    case StopEventReporter =>
+      eventLogWriter.stop()
+      sender ! 'OK
   }
 }
 
-class EventReporter(isDriver: Boolean) extends Logging {
+class EventReporter(
+    driverHost: String,
+    driverPort: Int,
+    isDriver: Boolean,
+    actorSystem: ActorSystem)
+  extends Logging {
+
   var debuggerEnabled = DebuggerOptions.enabled
   var checksumEnabled = DebuggerOptions.checksum
 
@@ -46,15 +41,12 @@ class EventReporter(isDriver: Boolean) extends Logging {
 
   def initReporterActor() = (debuggerEnabled, isDriver) match {
     case (true, true) =>
-      for (writer <- eventLogWriter) yield {
-        val actor = new EventReporterActor(writer)
-        actor.start()
-        actor
-      }
+      for (writer <- eventLogWriter) yield
+        actorSystem.actorOf(Props(new EventReporterActor(writer)), "event-reporter")
 
     case (true, false) => {
-      val (host, port) = DebuggerOptions.driverAddress
-      Some(RemoteActor.select(Node(host, port), 'EventReporterActor))
+      val address = Address("akka", "spark", driverHost, driverPort)
+      Some(actorSystem.actorFor(address.toString + "/user/event-reporter"))
     }
 
     case _ => None
@@ -62,12 +54,12 @@ class EventReporter(isDriver: Boolean) extends Logging {
 
   def reportAssertionFailure(failure: AssertionFailure) {
     for (actor <- reporterActor)
-      actor !! LogEvent(failure)
+      actor ! LogEvent(failure)
   }
 
   def reportException(exception: Throwable, task: Task[_]) {
     for (actor <- reporterActor)
-      actor !! LogEvent(ExceptionEvent(exception, task))
+      actor ! LogEvent(ExceptionEvent(exception, task))
   }
 
   def reportLocalException(exception: Throwable, task: Task[_]) {
@@ -101,7 +93,7 @@ class EventReporter(isDriver: Boolean) extends Logging {
             funcChecksum(byte)
 
           for (actor <- reporterActor)
-            actor !! LogEvent(ResultTaskChecksum(
+            actor ! LogEvent(ResultTaskChecksum(
                 r.rdd.id, r.partitionId, funcChecksum.hash, checksum.hash))
 
         case s: ShuffleMapTask =>
@@ -111,7 +103,7 @@ class EventReporter(isDriver: Boolean) extends Logging {
             checksum(byte)
 
           for (actor <- reporterActor)
-            actor !! LogEvent(ShuffleMapTaskChecksum(s.rdd.id, s.partitionId, checksum.hash))
+            actor ! LogEvent(ShuffleMapTaskChecksum(s.rdd.id, s.partitionId, checksum.hash))
 
         case _ =>
           logWarning("Unknown task type: " + task)
@@ -121,13 +113,15 @@ class EventReporter(isDriver: Boolean) extends Logging {
 
   def reportShuffleChecksum(rdd: RDD[_], partition: Int, outputSplit: Int, checksum: Int) {
     for (actor <- reporterActor)
-      actor !! LogEvent(ShuffleOutputChecksum(rdd.id, partition, outputSplit, checksum))
+      actor ! LogEvent(ShuffleOutputChecksum(rdd.id, partition, outputSplit, checksum))
   }
 
   def stop() {
-    for (actor <- reporterActor)
-      actor !? StopEventReporter
-    
+    for (actor <- reporterActor) {
+      implicit val timeout = Timeout(30 seconds)
+      Await.result(actor ? StopEventReporter, timeout.duration)
+    }
+
     eventLogWriter = None
     reporterActor = None
   }

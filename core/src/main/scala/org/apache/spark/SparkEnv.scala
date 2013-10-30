@@ -227,7 +227,7 @@ object SparkEnv extends Logging {
         "levels using the RDD.persist() method instead.")
     }
 
-    val eventReporter = new EventReporter(isDriver)
+    val eventReporter = new EventReporter(hostname, port, isDriver, actorSystem)
 
     new SparkEnv(
       executorId,
