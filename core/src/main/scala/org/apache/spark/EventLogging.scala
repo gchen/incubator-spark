@@ -2,6 +2,7 @@ package org.apache.spark
 
 import org.apache.spark.scheduler.Task
 import org.apache.spark.rdd.RDD
+import scala.util.MurmurHash
 
 sealed trait EventLogEntry
 
@@ -100,4 +101,27 @@ class EventLogInputStream(
 
   override def resolveClass(desc: ObjectStreamClass) =
     Class.forName(desc.getName, false, Thread.currentThread.getContextClassLoader)
+}
+
+class ChecksummingOutputStream(out: OutputStream) extends OutputStream {
+  val checksum = new MurmurHash[Byte](42)
+
+  def write(b: Int) {
+    checksum(b.toByte)
+    out.write(b)
+  }
+
+  override def write(b: Array[Byte]) {
+    for (byte <- b)
+      checksum(byte)
+    out.write(b)
+  }
+
+  override def flush() {
+    out.flush()
+  }
+
+  override def close() {
+    out.close()
+  }
 }
