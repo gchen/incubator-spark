@@ -616,7 +616,7 @@ class DAGScheduler(
       logDebug("New pending tasks: " + myPending)
       taskSched.submitTasks(
         new TaskSet(tasks.toArray, stage.id, stage.newAttemptId(), stage.jobId, properties))
-//      SparkEnv.get.eventReporter.reportTaskSubmission(tasks)
+      SparkEnv.get.eventReporter.reportTaskSubmission(tasks)
       stageToInfos(stage).submissionTime = Some(System.currentTimeMillis())
     } else {
       logDebug("Stage " + stage + " is actually done; %b %d %d".format(
