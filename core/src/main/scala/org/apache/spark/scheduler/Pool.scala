@@ -70,39 +70,29 @@ private[spark] class Pool(
     schedulableNameToSchedulable -= schedulable.name
   }
 
-  override def getSchedulableByName(schedulableName: String): Schedulable = {
-    if (schedulableNameToSchedulable.contains(schedulableName)) {
-      return schedulableNameToSchedulable(schedulableName)
-    }
-    for (schedulable <- schedulableQueue) {
-      var sched = schedulable.getSchedulableByName(schedulableName)
-      if (sched != null) {
-        return sched
-      }
-    }
-    return null
-  }
+  override def getSchedulableByName(schedulableName: String): Schedulable =
+    schedulableNameToSchedulable.getOrElse(
+      schedulableName,
+      schedulableQueue.view
+        .map(_.getSchedulableByName(schedulableName))
+        .find(_ != null)
+        .getOrElse(null))
 
   override def executorLost(executorId: String, host: String) {
     schedulableQueue.foreach(_.executorLost(executorId, host))
   }
 
-  override def checkSpeculatableTasks(): Boolean = {
-    var shouldRevive = false
-    for (schedulable <- schedulableQueue) {
-      shouldRevive |= schedulable.checkSpeculatableTasks()
+  override def checkSpeculatableTasks(): Boolean =
+    (false /: schedulableQueue) {
+      case (shouldRevive, schedulable) =>
+        shouldRevive || schedulable.checkSpeculatableTasks()
     }
-    return shouldRevive
-  }
 
-  override def getSortedTaskSetQueue(): ArrayBuffer[TaskSetManager] = {
-    var sortedTaskSetQueue = new ArrayBuffer[TaskSetManager]
-    val sortedSchedulableQueue = schedulableQueue.sortWith(taskSetSchedulingAlgorithm.comparator)
-    for (schedulable <- sortedSchedulableQueue) {
-      sortedTaskSetQueue ++= schedulable.getSortedTaskSetQueue()
-    }
-    return sortedTaskSetQueue
-  }
+  override def getSortedTaskSetQueue(): ArrayBuffer[TaskSetManager] =
+    for {
+      schedulable <- schedulableQueue.sortWith(taskSetSchedulingAlgorithm.comparator)
+      taskSetManager <- schedulable.getSortedTaskSetQueue()
+    } yield taskSetManager
 
   def increaseRunningTasks(taskNum: Int) {
     runningTasks += taskNum

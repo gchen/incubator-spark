@@ -854,16 +854,16 @@ class DAGScheduler(
     // If the RDD has narrow dependencies, pick the first partition of the first narrow dep
     // that has any placement preferences. Ideally we would choose based on transfer sizes,
     // but this will do for now.
-    rdd.dependencies.foreach {
-      case n: NarrowDependency[_] =>
-        for (inPart <- n.getParents(partition)) {
-          val locs = getPreferredLocs(n.rdd, inPart)
-          if (locs != Nil)
-            return locs
-        }
-      case _ =>
-    }
-    Nil
+    val narrowDepsView = rdd.dependencies.view.collect({
+      case n: NarrowDependency[_] => n
+    })
+
+    val locationsView = for {
+      dep <- narrowDepsView
+      p <- dep.getParents(partition)
+    } yield getPreferredLocs(dep.rdd, p)
+
+    locationsView.find(_.nonEmpty).getOrElse(Nil)
   }
 
   private def cleanup(cleanupTime: Long) {
