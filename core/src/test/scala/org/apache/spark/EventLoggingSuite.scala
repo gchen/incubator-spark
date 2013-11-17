@@ -25,9 +25,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext with Logging {
 
     reporter.debuggerEnabled = debuggerEnabled
     reporter.checksumEnabled = checksumEnabled
-
-    for (writer <- reporter.eventLogWriter)
-      writer.initEventLog(Some(eventLog.getAbsolutePath))
+    reporter.eventLogWriter.setEventLogPath(eventLog.getAbsolutePath)
   }
 
   private def withLocalSpark(f: SparkContext => Unit) =
@@ -55,8 +53,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext with Logging {
 
       // Make an RDD
       sc1.makeRDD(1 to 4)
-      for (writer <- SparkEnv.get.eventReporter.eventLogWriter)
-        writer.flush()
+      SparkEnv.get.eventReporter.eventLogWriter.flush()
 
       // TODO Remove this once Typesafe Config is used for Spark configuration
       // This is a workaround to avoid the inner `SparkContext` binds to the same port used by the outer one.
@@ -71,8 +68,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext with Logging {
         // Make an RDD
         SparkEnv.set(sc1.env)
         sc1.makeRDD(1 to 5)
-        for (writer <- SparkEnv.get.eventReporter.eventLogWriter)
-          writer.flush()
+        SparkEnv.get.eventReporter.eventLogWriter.flush()
 
         // Read the RDD back from the event log
         SparkEnv.set(sc2.env)
@@ -121,7 +117,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext with Logging {
       assert(r.rdds(0).collect().toList === (1 to 4).toList)
       assert(r.rdds(1).collect().toList != collected)
 
-      writer = sc.env.eventReporter.eventLogWriter.get
+      writer = sc.env.eventReporter.eventLogWriter
     }
 
     // Make sure we found some checksum mismatch
