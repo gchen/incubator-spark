@@ -14,6 +14,10 @@ class EventLogger(eventLogPath: String) extends SparkListener with Logging {
     stream.writeObject(event)
   }
 
+  private[spark] def close() {
+    stream.close()
+  }
+
   override def onStageCompleted(stageCompleted: StageCompleted) { }
 
   override def onStageSubmitted(stageSubmitted: SparkListenerStageSubmitted) { }

@@ -246,10 +246,16 @@ class SparkContext(
 
   @volatile private[spark] var dagScheduler = new DAGScheduler(taskScheduler)
 
-  if (System.getProperty("spark.eventLogging.enabled", "false").toBoolean) {
-    val eventLogPath = System.getProperty("spark.eventLogging.eventLogPath", "/tmp/spark-events.log")
-    dagScheduler.addSparkListener(new EventLogger(eventLogPath))
-  }
+  private[spark] val eventLogger =
+    if (System.getProperty("spark.eventLogging.enabled", "false").toBoolean) {
+      val eventLogPath = System.getProperty("spark.eventLogging.eventLogPath", "/tmp/spark-events.log")
+      val logger = new EventLogger(eventLogPath)
+      addSparkListener(logger)
+      Some(logger)
+    }
+    else {
+      None
+    }
 
   ui.start()
 
@@ -760,6 +766,7 @@ class SparkContext(
 
   /** Shut down the SparkContext. */
   def stop() {
+    eventLogger.foreach(_.close())
     ui.stop()
     // Do this only if not stopped already - best case effort.
     // prevent NPE if stopped more than once.
