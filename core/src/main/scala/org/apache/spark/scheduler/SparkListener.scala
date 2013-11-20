@@ -21,6 +21,7 @@ import java.util.Properties
 import org.apache.spark.util.{Utils, Distribution}
 import org.apache.spark.{Logging, SparkContext, TaskEndReason}
 import org.apache.spark.executor.TaskMetrics
+import org.apache.spark.rdd.RDD
 
 sealed trait SparkListenerEvents
 
@@ -41,6 +42,9 @@ case class SparkListenerJobStart(job: ActiveJob, properties: Properties = null)
      extends SparkListenerEvents
 
 case class SparkListenerJobEnd(job: ActiveJob, jobResult: JobResult)
+     extends SparkListenerEvents
+
+case class SparkListenerRDDCreation(rdd: RDD[_], trace: Array[StackTraceElement])
      extends SparkListenerEvents
 
 trait SparkListener {
