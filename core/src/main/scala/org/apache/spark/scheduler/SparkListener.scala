@@ -84,6 +84,10 @@ trait SparkListener {
    */
   def onJobEnd(jobEnd: SparkListenerJobEnd) { }
 
+  /**
+   * Called when an RDD is created
+   */
+  def onRDDCreation(rddCreation: SparkListenerRDDCreation) { }
 }
 
 /**
