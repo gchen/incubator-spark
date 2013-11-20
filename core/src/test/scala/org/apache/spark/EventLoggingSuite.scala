@@ -26,6 +26,16 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
   def withLocalSpark[T](f: SparkContext => T) =
     withSpark(new SparkContext("local", "test"))(f)
 
+  def enableEventLogging() {
+    System.setProperty("spark.eventLogging.enabled", "true")
+    System.setProperty("spark.eventLogging.eventLogPath", eventLogFile.getAbsolutePath)
+  }
+
+  def disableEventLogging() {
+    System.clearProperty("spark.eventLogging.enabled")
+    System.clearProperty("spark.eventLogging.eventLogPath")
+  }
+
   test("A SparkListenerRDDCreation event should be posted when an RDD is created") {
     withLocalSpark { sc =>
       implicit val actorSystem = sc.env.actorSystem
@@ -43,8 +53,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
   }
 
   test("EventLogger should log events to log file") {
-    System.setProperty("spark.eventLogging.enabled", "true")
-    System.setProperty("spark.eventLogging.eventLogPath", eventLogFile.getAbsolutePath)
+    enableEventLogging()
 
     withLocalSpark { sc =>
       implicit val actorSystem = sc.env.actorSystem
@@ -62,16 +71,19 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
       // Wait until the EventLogger is finally called
       assert(Await.result(eventProcessed.future, AwaitTimeout) === ())
-    }
 
-    val input = new ObjectInputStream(new FileInputStream(eventLogFile))
+      val input = new EventLogInputStream(new FileInputStream(eventLogFile), sc)
 
-    try {
-      val event = input.readObject().asInstanceOf[SparkListenerRDDCreation]
-      assert(event.rdd.isInstanceOf[EmptyRDD[Unit]])
-    }
-    finally {
-      input.close()
+      try {
+        val event = input.readObject().asInstanceOf[SparkListenerRDDCreation]
+        val rdd = event.rdd
+
+        assert(event.rdd.isInstanceOf[EmptyRDD[Unit]])
+        assert(rdd.context === sc)
+      }
+      finally {
+        input.close()
+      }
     }
   }
 }
