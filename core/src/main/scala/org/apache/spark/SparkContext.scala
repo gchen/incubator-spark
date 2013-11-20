@@ -620,6 +620,10 @@ class SparkContext(
     dagScheduler.addSparkListener(listener)
   }
 
+  def postSparkListenerEvent(event: SparkListenerEvents) {
+    dagScheduler.listenerBus.post(event)
+  }
+
   /**
    * Return a map from the slave to the max memory available for caching and the remaining
    * memory available for caching.
