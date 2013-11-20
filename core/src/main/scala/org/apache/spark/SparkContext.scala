@@ -246,6 +246,11 @@ class SparkContext(
 
   @volatile private[spark] var dagScheduler = new DAGScheduler(taskScheduler)
 
+  if (System.getProperty("spark.eventLogging.enabled", "false").toBoolean) {
+    val eventLogPath = System.getProperty("spark.eventLogging.eventLogPath", "/tmp/spark-events.log")
+    dagScheduler.addSparkListener(new EventLogger(eventLogPath))
+  }
+
   ui.start()
 
   /** A default Hadoop Configuration for the Hadoop code (e.g. file systems) that we reuse. */
