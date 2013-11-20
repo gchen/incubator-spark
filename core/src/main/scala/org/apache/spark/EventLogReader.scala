@@ -1,6 +1,6 @@
 package org.apache.spark
 
-import java.io.{EOFException, File, FileInputStream}
+import java.io.{File, FileInputStream}
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.util._
@@ -30,18 +30,9 @@ class EventLogReader(sc: SparkContext, eventLogPath: Option[String] = None) exte
   val events = new ArrayBuffer[EventLogEntry]
 
   loadEvents()
-
-  for (writer <- sc.env.eventReporter.eventLogWriter)
-    writer.registerEventLogReader(this)
+  sc.env.eventReporter.registerEventLogReader(this)
 
   def rdds = _rdds.readOnly
-
-  /** Lists all checksum mismatches */
-  def checksumMismatches: Seq[ChecksumEvent] =
-    for {
-      writer <- sc.env.eventReporter.eventLogWriter.toSeq
-      mismatch <- writer.checksumMismatches
-    } yield mismatch
 
   /** Prints a human readable RDD list */
   def printRDDs() {
@@ -89,22 +80,8 @@ class EventLogReader(sc: SparkContext, eventLogPath: Option[String] = None) exte
 
   def loadEvents() {
     for (in <- objectInputStream) {
-      try {
-        while (true) {
-          val event = in.readObject.asInstanceOf[EventLogEntry]
-          appendEvent(event)
-
-          event match {
-            case c: ChecksumEvent =>
-              for (writer <- sc.env.eventReporter.eventLogWriter)
-                writer.processChecksumEvent(c)
-
-            case _ => ()
-          }
-        }
-      }
-      catch {
-        case e: EOFException => ()
+      while (in.available() > 0) {
+        appendEvent(in.readObject.asInstanceOf[EventLogEntry])
       }
     }
   }

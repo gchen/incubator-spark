@@ -5,7 +5,6 @@ object DebuggerOptions {
   def driverPort = System.getProperty("spark.driver.port").toInt
   def driverAddress = (driverHost, driverPort)
 
-  def enabled = System.getProperty("spark.debugger.enabled", "true").toBoolean
-  def checksum = System.getProperty("spark.debugger.checksum", "true").toBoolean
+  def eventLoggingEnabled = System.getProperty("spark.debugger.enabled", "false").toBoolean
   def logPath = System.getProperty("spark.debugger.logPath")
 }

@@ -20,16 +20,16 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext with Logging {
       eventLog: File,
       debuggerEnabled: Boolean = true,
       checksumEnabled: Boolean = true) {
-
     val reporter = sc.env.eventReporter
-
-    reporter.debuggerEnabled = debuggerEnabled
     reporter.checksumEnabled = checksumEnabled
-    reporter.eventLogWriter.setEventLogPath(eventLog.getAbsolutePath)
+    reporter.start(eventLog.getAbsolutePath)
   }
 
-  private def withLocalSpark(f: SparkContext => Unit) =
+  private def withLocalSpark(f: SparkContext => Unit) = {
+    System.clearProperty("spark.debugger.enabled")
+    System.clearProperty("spark.debugger.checksum")
     LocalSparkContext.withSpark(new SparkContext("local", "test"))(f)
+  }
 
   test("restore ParallelCollection from log") {
     // Make an RDD
@@ -53,7 +53,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext with Logging {
 
       // Make an RDD
       sc1.makeRDD(1 to 4)
-      SparkEnv.get.eventReporter.eventLogWriter.flush()
+      SparkEnv.get.eventReporter.flush()
 
       // TODO Remove this once Typesafe Config is used for Spark configuration
       // This is a workaround to avoid the inner `SparkContext` binds to the same port used by the outer one.
@@ -68,7 +68,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext with Logging {
         // Make an RDD
         SparkEnv.set(sc1.env)
         sc1.makeRDD(1 to 5)
-        SparkEnv.get.eventReporter.eventLogWriter.flush()
+        SparkEnv.get.eventReporter.flush()
 
         // Read the RDD back from the event log
         SparkEnv.set(sc2.env)
@@ -96,31 +96,5 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext with Logging {
       assert(n.id != r.rdds(0).id)
       assert(n.id != r.rdds(1).id)
     }
-  }
-
-  test("checksum verification") {
-    var collected: List[Double] = null
-
-    // Make some RDD that has non-deterministic transformation
-    withLocalSpark { sc =>
-      enableEventLogging(sc, eventLog)
-      collected = sc.makeRDD(1 to 4).map(_ => math.random).collect().toList
-    }
-
-    var writer: EventLogWriter = null
-
-    // Read the RDDs back and check for non-determinism
-    withLocalSpark { sc =>
-      val r = new EventLogReader(sc, Some(eventLog.getAbsolutePath))
-
-      assert(r.rdds.length === 2)
-      assert(r.rdds(0).collect().toList === (1 to 4).toList)
-      assert(r.rdds(1).collect().toList != collected)
-
-      writer = sc.env.eventReporter.eventLogWriter
-    }
-
-    // Make sure we found some checksum mismatch
-    assert(writer.checksumMismatches.nonEmpty)
   }
 }

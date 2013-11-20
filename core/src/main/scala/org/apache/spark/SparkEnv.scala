@@ -18,10 +18,8 @@
 package org.apache.spark
 
 import collection.mutable
-import serializer.Serializer
 
-import akka.actor.{Actor, ActorRef, Props, ActorSystemImpl, ActorSystem}
-import akka.remote.RemoteActorRefProvider
+import akka.actor.{Actor, ActorRef, Props, ActorSystem}
 
 import org.apache.spark.broadcast.BroadcastManager
 import org.apache.spark.metrics.MetricsSystem
@@ -218,7 +216,17 @@ object SparkEnv extends Logging {
         "levels using the RDD.persist() method instead.")
     }
 
-    val eventReporter = new EventReporter(hostname, port, isDriver, actorSystem)
+    val eventReporter = if (isDriver) {
+      val reporter = new DriverSideEventReporter(actorSystem, hostname, port)
+      if (DebuggerOptions.eventLoggingEnabled) {
+        reporter.start(DebuggerOptions.logPath)
+      }
+      reporter
+    }
+    else {
+      new ExecutorSideEventReporter(actorSystem, hostname, port)
+    }
+
 
     new SparkEnv(
       executorId,
