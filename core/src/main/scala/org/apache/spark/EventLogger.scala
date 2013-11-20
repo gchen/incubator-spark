@@ -1,6 +1,6 @@
 package org.apache.spark
 
-import java.io.{ObjectOutputStream, File, FileOutputStream}
+import java.io.{File, FileOutputStream}
 
 import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.SparkListenerRDDCreation
@@ -8,7 +8,7 @@ import org.apache.spark.scheduler.SparkListenerJobEnd
 import org.apache.spark.scheduler.SparkListenerJobStart
 
 class EventLogger(eventLogPath: String) extends SparkListener with Logging {
-  val stream = new ObjectOutputStream(new FileOutputStream(new File(eventLogPath)))
+  val stream = new EventLogOutputStream(new FileOutputStream(new File(eventLogPath)))
 
   private[this] def logEvent(event: SparkListenerEvents) {
     stream.writeObject(event)

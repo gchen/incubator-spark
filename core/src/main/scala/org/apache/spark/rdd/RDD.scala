@@ -43,6 +43,7 @@ import org.apache.spark.util.{Utils, BoundedPriorityQueue}
 import org.apache.spark.SparkContext._
 import org.apache.spark._
 import org.apache.spark.scheduler.SparkListenerRDDCreation
+import java.io.ObjectInputStream
 
 /**
  * A Resilient Distributed Dataset (RDD), the basic abstraction in Spark. Represents an immutable,
@@ -1004,6 +1005,14 @@ abstract class RDD[T: ClassManifest](
   private[this] def postCreationEvent() {
     val event = SparkListenerRDDCreation(this, Thread.currentThread().getStackTrace)
     context.postSparkListenerEvent(event)
+  }
+
+  private def readObject(stream: ObjectInputStream) {
+    stream.defaultReadObject()
+    stream match {
+      case s: EventLogInputStream => sc = s.context
+      case _ =>
+    }
   }
 
   postCreationEvent()
