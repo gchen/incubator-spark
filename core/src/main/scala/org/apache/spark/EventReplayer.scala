@@ -1,6 +1,6 @@
 package org.apache.spark
 
-import java.io.{PrintWriter, File, FileInputStream}
+import java.io.{EOFException, PrintWriter, File, FileInputStream}
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler.{SparkListenerRDDCreation, SparkListenerEvents}
@@ -25,10 +25,15 @@ class EventReplayer(context: SparkContext, eventLogPath: String) {
   def events = _events.readOnly
 
   private[this] def loadEvents() {
-    while (stream.available() > 0) {
-      val event = stream.readObject().asInstanceOf[SparkListenerEvents]
-      appendEvent(event)
-      // TODO Lian: According to Arthur, should check for checksum mismatch here, but I doubt...
+    try {
+      while (true) {
+        val event = stream.readObject().asInstanceOf[SparkListenerEvents]
+        appendEvent(event)
+        // TODO Lian: According to Arthur, should check for checksum mismatch here, but I doubt...
+      }
+    }
+    catch {
+      case _: EOFException => stream.close()
     }
   }
 
