@@ -634,6 +634,10 @@ class SparkContext(
     dagScheduler.addSparkListener(listener)
   }
 
+  def removeSparkListener(listener: SparkListener) {
+    dagScheduler.removeSparkListener(listener)
+  }
+
   def postSparkListenerEvent(event: SparkListenerEvents) {
     dagScheduler.listenerBus.post(event)
   }
