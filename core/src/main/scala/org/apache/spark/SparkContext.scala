@@ -246,9 +246,11 @@ class SparkContext(
 
   @volatile private[spark] var dagScheduler = new DAGScheduler(taskScheduler)
 
-  private[spark] val eventLogger =
-    if (System.getProperty("spark.eventLogging.enabled", "false").toBoolean) {
-      val eventLogPath = System.getProperty("spark.eventLogging.eventLogPath", "/tmp/spark-events.log")
+  private[spark] var eventLogger = {
+    val eventLoggingEnabled = System.getProperty("spark.eventLogging.enabled", "false").toBoolean
+    val eventLogPath = System.getProperty("spark.eventLogging.eventLogPath", "/tmp/spark-events.log")
+
+    if (eventLoggingEnabled) {
       val logger = new EventLogger(eventLogPath)
       addSparkListener(logger)
       Some(logger)
@@ -256,6 +258,7 @@ class SparkContext(
     else {
       None
     }
+  }
 
   ui.start()
 
@@ -767,6 +770,7 @@ class SparkContext(
   /** Shut down the SparkContext. */
   def stop() {
     eventLogger.foreach(_.close())
+    eventLogger = None
     ui.stop()
     // Do this only if not stopped already - best case effort.
     // prevent NPE if stopped more than once.
@@ -996,6 +1000,14 @@ class SparkContext(
   /** Called by MetadataCleaner to clean up the persistentRdds map periodically */
   private[spark] def cleanup(cleanupTime: Long) {
     persistentRdds.clearOldValues(cleanupTime)
+  }
+
+  /** Used by [[org.apache.spark.EventReplayer]]. */
+  private[spark] def updateRddId(id: Int) {
+    val delta = id - nextRddId.get() + 1
+    if (delta > 0) {
+      nextRddId.getAndAdd(delta)
+    }
   }
 }
 

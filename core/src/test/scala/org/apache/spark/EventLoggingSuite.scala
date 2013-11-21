@@ -16,7 +16,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
   val AwaitTimeout = 10.seconds
 
   override def beforeEach() {
-    eventLogFile = File.createTempFile("spark-event", ".log")
+    eventLogFile = File.createTempFile("spark-event-", ".log")
   }
 
   override def afterEach() {
