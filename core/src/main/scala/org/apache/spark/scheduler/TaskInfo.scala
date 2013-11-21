@@ -17,8 +17,6 @@
 
 package org.apache.spark.scheduler
 
-import org.apache.spark.util.Utils
-
 /**
  * Information about a running task attempt inside a TaskSet.
  */
@@ -29,7 +27,8 @@ class TaskInfo(
     val launchTime: Long,
     val executorId: String,
     val host: String,
-    val taskLocality: TaskLocality.TaskLocality) {
+    val taskLocality: TaskLocality.TaskLocality)
+  extends Serializable {
 
   /**
    * The time when the task started remotely getting the result. Will not be set if the
