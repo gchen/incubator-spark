@@ -12,8 +12,8 @@ class EventLogger(eventLogPath: String) extends SparkListener with Logging {
   var replayer: Option[EventReplayer] = None
 
   private[this] def logEvent(event: SparkListenerEvents) {
-    stream.writeObject(event)
     replayer.foreach(_.appendEvent(event))
+    stream.writeObject(event)
   }
 
   private[spark] def close() {
@@ -21,6 +21,8 @@ class EventLogger(eventLogPath: String) extends SparkListener with Logging {
   }
 
   private[spark] def registerEventReplayer(replayer: EventReplayer) {
+    // Flush the log file, so that the replayer can see the most recent events
+    stream.flush()
     this.replayer = Some(replayer)
   }
 
