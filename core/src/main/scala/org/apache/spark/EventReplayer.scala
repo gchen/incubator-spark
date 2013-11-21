@@ -112,7 +112,7 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
 
     val dotFilePath = dotFile.getAbsolutePath
     Runtime.getRuntime.exec("dot -Grankdir=BT -T%s %s -o %s.%s"
-      .format(format, dotFilePath, dotFilePath, format))
+      .format(format, dotFilePath, dotFilePath, format)).waitFor()
 
     dotFilePath + "." + format
   }
