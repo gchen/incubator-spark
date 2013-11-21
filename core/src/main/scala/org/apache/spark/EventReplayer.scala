@@ -57,9 +57,9 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     }
   }
 
-  def visualizeRDDs(): String = {
-    def rddType(rdd: RDD[_]) = rdd.getClass.getSimpleName
+  private[this] def rddType(rdd: RDD[_]) = rdd.getClass.getSimpleName
 
+  def visualizeRDDs() = {
     val file = File.createTempFile("spark-rdds-", "")
     val dot = new PrintWriter(file)
 
@@ -79,4 +79,14 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     Runtime.getRuntime.exec("dot -Grankdir=BT -Tpdf %s -o %s.pdf".format(path, path))
     path + ".pdf"
   }
+
+  def printRDDs() {
+    for (SparkListenerRDDCreation(rdd, trace) <- events) {
+      println("#%d: %-20s %s".format(rdd.id, rddType(rdd), firstExternalElement(trace)))
+    }
+  }
+
+  private[this] def firstExternalElement(trace: Array[StackTraceElement]) =
+    trace.tail.find(_.getClass.getPackage == context.getClass.getPackage)
+      .getOrElse(trace.headOption.getOrElse(""))
 }
