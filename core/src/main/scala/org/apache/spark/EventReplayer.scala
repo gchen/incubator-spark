@@ -87,9 +87,16 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
 
   private[this] def rddType(rdd: RDD[_]) = rdd.getClass.getSimpleName
 
-  def visualizeRDDs() = {
-    val file = File.createTempFile("spark-rdds-", "")
-    val dot = new PrintWriter(file)
+  /**
+   * Visualizes the RDD DAG with GraphViz
+   *
+   * @param format Output file format, can be "pdf", "png", "svg", etc., default to "pdf".  Please
+   *               refer to GraphViz documentation for all supported file formats.
+   * @return The absolution file path of the output file
+   */
+  def visualizeRDDs(format: String = "pdf") = {
+    val dotFile = File.createTempFile("spark-rdds-", "")
+    val dot = new PrintWriter(dotFile)
 
     dot.println("digraph {")
 
@@ -103,9 +110,11 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     dot.println("}")
     dot.close()
 
-    val path = file.getAbsolutePath
-    Runtime.getRuntime.exec("dot -Grankdir=BT -Tpdf %s -o %s.pdf".format(path, path))
-    path + ".pdf"
+    val dotFilePath = dotFile.getAbsolutePath
+    Runtime.getRuntime.exec("dot -Grankdir=BT -T%s %s -o %s.%s"
+      .format(format, dotFilePath, dotFilePath, format))
+
+    dotFilePath + "." + format
   }
 
   def printRDDs() {
