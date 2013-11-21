@@ -3,9 +3,13 @@ package org.apache.spark
 import java.io.{EOFException, PrintWriter, File, FileInputStream}
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.scheduler.{SparkListenerRDDCreation, SparkListenerEvents}
+import org.apache.spark.scheduler._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable
+import org.apache.spark.scheduler.SparkListenerRDDCreation
+import org.apache.spark.EventLogInputStream
+import org.apache.spark.scheduler.SparkListenerTaskStart
+import scala.Some
 
 class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   private[this] val stream = {
@@ -32,6 +36,30 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   def rdds = _rdds.readOnly
 
   def events = _events.readOnly
+
+  def tasks = for (SparkListenerTaskStart(task, _) <- events) yield task
+
+  def tasksForRDD(rdd: RDD[_]): Seq[Task[_]] =
+    for {
+      task <- tasks
+      taskRDD <- task match {
+        case t: ResultTask[_, _] => Some(t.rdd)
+        case t: ShuffleMapTask => Some(t.rdd)
+        case _ => None
+      }
+      if taskRDD.id == rdd.id
+    } yield task
+
+  def taskWithId(stageId: Int, partition: Int): Option[Task[_]] =
+    (for {
+      task <- tasks
+      (taskStageId, taskPartition) <- task match {
+        case t: ResultTask[_, _] => Some((t.stageId, t.partitionId))
+        case t: ShuffleMapTask => Some((t.stageId, t.partitionId))
+        case _ => None
+      }
+      if taskStageId == stageId && taskPartition == partition
+    } yield task).headOption
 
   private[this] def loadEvents() {
     try {
