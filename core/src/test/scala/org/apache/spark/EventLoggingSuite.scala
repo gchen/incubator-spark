@@ -178,4 +178,39 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       assert(result.collect().toList === List(2, 4, 6))
     }
   }
+
+  test("visualizeRDDs should generate a PDF file") {
+    enableEventLogging()
+
+    withLocalSpark { sc =>
+      implicit val actorSystem = sc.env.actorSystem
+      val allEventsProcessed = Promise[Unit]()
+
+      // Add a dummy listener to the end of the SparkListenerBus to indicate
+      // that all listeners have been called.
+      val listener = new SparkListener {
+        override def onJobEnd(jobEnd: SparkListenerJobEnd) {
+          allEventsProcessed.success(())
+        }
+      }
+
+      sc.addSparkListener(listener)
+      val r1 = sc.makeRDD(1 to 3)
+      val r2 = r1.map(_ * 2)
+      val r3 = sc.makeRDD(2 to 4)
+      val r4 = r1.cartesian(r3).map { case (a, b) => a + b }
+      val r5 = r2.zip(r4)
+      r5.collect()
+
+      // Wait until the EventLogger.onJobEnd is finally invoked
+      assert(Await.result(allEventsProcessed.future, AwaitTimeout) === ())
+      sc.removeSparkListener(listener)
+
+      // Restore RDDs and re-run the job
+      val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
+      val pdf = new File(replayer.visualizeRDDs())
+      assert(pdf.exists())
+      pdf.delete()
+    }
+  }
 }
