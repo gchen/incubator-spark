@@ -6,9 +6,11 @@ import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.SparkListenerRDDCreation
 import org.apache.spark.scheduler.SparkListenerJobEnd
 import org.apache.spark.scheduler.SparkListenerJobStart
+import com.google.common.io.Files
 
 class EventLogger(eventLogPath: String) extends SparkListener with Logging {
-  val stream = new EventLogOutputStream(new FileOutputStream(new File(eventLogPath)))
+  val logFile = new File(eventLogPath)
+  val stream = new EventLogOutputStream(new FileOutputStream(logFile))
   var replayer: Option[EventReplayer] = None
 
   private[this] def logEvent(event: SparkListenerEvents) {
@@ -24,6 +26,10 @@ class EventLogger(eventLogPath: String) extends SparkListener with Logging {
     // Flush the log file, so that the replayer can see the most recent events
     stream.flush()
     this.replayer = Some(replayer)
+  }
+
+  def saveEventLogAs(path: String) {
+    Files.copy(logFile, new File(path))
   }
 
   override def onStageCompleted(stageCompleted: StageCompleted) { }

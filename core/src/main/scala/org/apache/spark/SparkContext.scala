@@ -642,6 +642,11 @@ class SparkContext(
     dagScheduler.listenerBus.post(event)
   }
 
+  def saveEventLogAs(path: String) {
+    require(eventLogger.isDefined, "event logging not enabled")
+    eventLogger.foreach(_.saveEventLogAs(path))
+  }
+
   /**
    * Return a map from the slave to the max memory available for caching and the remaining
    * memory available for caching.
