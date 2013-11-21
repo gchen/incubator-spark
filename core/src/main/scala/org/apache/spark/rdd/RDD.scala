@@ -1010,7 +1010,7 @@ abstract class RDD[T: ClassManifest](
   private def readObject(stream: ObjectInputStream) {
     stream.defaultReadObject()
     stream match {
-      case s: EventLogInputStream => sc = s.context
+      case EventLogInputStream(_, context) => sc = context
       case _ =>
     }
   }

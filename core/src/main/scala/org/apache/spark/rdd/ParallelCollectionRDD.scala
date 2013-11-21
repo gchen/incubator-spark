@@ -107,7 +107,8 @@ private[spark] class ParallelCollectionRDD[T: ClassManifest](
   private def readObject(stream: ObjectInputStream) {
     stream.defaultReadObject()
     stream match {
-      case _: EventLogInputStream => splits = stream.readObject().asInstanceOf[Array[Partition]]
+      case _: EventLogInputStream =>
+        splits = stream.readObject().asInstanceOf[Array[Partition]]
       case _ =>
     }
   }
