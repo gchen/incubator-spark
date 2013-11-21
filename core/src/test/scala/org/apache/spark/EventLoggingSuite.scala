@@ -114,4 +114,32 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       assert(rdd2.context === sc)
     }
   }
+
+  test("RDD restored from event log can be used as usual") {
+    enableEventLogging()
+
+    withLocalSpark { sc =>
+      implicit val actorSystem = sc.env.actorSystem
+      val eventProcessed = Promise[Unit]()
+
+      // Add a dummy listener to the end of the SparkListenerBus to indicate
+      // that all listeners have been called.
+      val listener = new SparkListener {
+        override def onRDDCreation(rddCreation: SparkListenerRDDCreation) {
+          eventProcessed.success(())
+        }
+      }
+
+      sc.addSparkListener(listener)
+      sc.makeRDD(1 to 3)
+
+      // Wait until the EventLogger is finally called
+      assert(Await.result(eventProcessed.future, AwaitTimeout) === ())
+      sc.removeSparkListener(listener)
+
+      val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
+      val rdd = replayer.rdds.head
+      assert(rdd.collect().toList === List(1, 2, 3))
+    }
+  }
 }
