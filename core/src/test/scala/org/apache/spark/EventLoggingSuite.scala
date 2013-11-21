@@ -4,7 +4,7 @@ import org.scalatest.FunSuite
 import org.apache.spark.scheduler.SparkListener
 import akka.dispatch.{Await, Promise}
 import akka.util.duration._
-import org.apache.spark.rdd.EmptyRDD
+import org.apache.spark.rdd.{ParallelCollectionRDD, EmptyRDD}
 import java.io._
 import org.apache.spark.scheduler.SparkListenerRDDCreation
 
@@ -59,7 +59,8 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       implicit val actorSystem = sc.env.actorSystem
       val eventProcessed = Promise[Unit]()
 
-      // Add a dummy listener to indicate that all listeners have been called
+      // Add a dummy listener to the end of the SparkListenerBus to indicate
+      // that all listeners have been called.
       sc.addSparkListener(new SparkListener {
         override def onRDDCreation(rddCreation: SparkListenerRDDCreation) {
           eventProcessed.success(())
@@ -72,18 +73,45 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       // Wait until the EventLogger is finally called
       assert(Await.result(eventProcessed.future, AwaitTimeout) === ())
 
-      val input = new EventLogInputStream(new FileInputStream(eventLogFile), sc)
+      val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
+      assert(replayer.rdds.size === 1)
 
-      try {
-        val event = input.readObject().asInstanceOf[SparkListenerRDDCreation]
-        val rdd = event.rdd
+      val rdd = replayer.rdds.head
+      assert(rdd.isInstanceOf[EmptyRDD[Unit]])
+      assert(rdd.context === sc)
+    }
+  }
 
-        assert(event.rdd.isInstanceOf[EmptyRDD[Unit]])
-        assert(rdd.context === sc)
-      }
-      finally {
-        input.close()
-      }
+  test("EventLogger should receive new events from EventLogger") {
+    enableEventLogging()
+
+    withLocalSpark { sc =>
+      implicit val actorSystem = sc.env.actorSystem
+      val eventProcessed = Promise[Unit]()
+
+      // Add a dummy listener to the end of the SparkListenerBus to indicate
+      // that all listeners have been called.
+      sc.addSparkListener(new SparkListener {
+        override def onRDDCreation(rddCreation: SparkListenerRDDCreation) {
+          eventProcessed.success(())
+        }
+      })
+
+      val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
+
+      // No events are written in the event log
+      assert(replayer.rdds.size === 0)
+
+      // Create a new RDD, a SparkListenerRDDCreation event should be appended to the replayer
+      new EmptyRDD[Unit](sc)
+
+      // Wait until the EventLogger is finally called
+      assert(Await.result(eventProcessed.future, AwaitTimeout) === ())
+
+      assert(replayer.rdds.size === 1)
+      val rdd2 = replayer.rdds.head
+      assert(rdd2.isInstanceOf[EmptyRDD[Unit]])
+      assert(rdd2.context === sc)
     }
   }
 }
