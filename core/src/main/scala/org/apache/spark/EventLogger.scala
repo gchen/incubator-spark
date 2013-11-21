@@ -9,13 +9,19 @@ import org.apache.spark.scheduler.SparkListenerJobStart
 
 class EventLogger(eventLogPath: String) extends SparkListener with Logging {
   val stream = new EventLogOutputStream(new FileOutputStream(new File(eventLogPath)))
+  var replayer: Option[EventReplayer] = None
 
   private[this] def logEvent(event: SparkListenerEvents) {
     stream.writeObject(event)
+    replayer.foreach(_.appendEvent(event))
   }
 
   private[spark] def close() {
     stream.close()
+  }
+
+  private[spark] def registerEventReplayer(replayer: EventReplayer) {
+    this.replayer = Some(replayer)
   }
 
   override def onStageCompleted(stageCompleted: StageCompleted) { }
