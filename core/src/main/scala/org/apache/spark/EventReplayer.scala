@@ -7,9 +7,18 @@ import org.apache.spark.scheduler.{SparkListenerRDDCreation, SparkListenerEvents
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable
 
-class EventReplayer(context: SparkContext, eventLogPath: String) {
-  private[this] val stream =
+class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
+  private[this] val stream = {
+    if (eventLogPath == null) {
+      eventLogPath = System.getProperty("spark.eventLogging.eventLogPath")
+
+      require(eventLogPath != null, "Please specify the event log path, " +
+        "either by setting the \"spark.eventLogging.eventLogPath\", " +
+        "or by constructing EventReplayer with a legal event log path")
+    }
+
     new EventLogInputStream(new FileInputStream(new File(eventLogPath)), context)
+  }
 
   private[this] val _events = new ArrayBuffer[SparkListenerEvents]
 
