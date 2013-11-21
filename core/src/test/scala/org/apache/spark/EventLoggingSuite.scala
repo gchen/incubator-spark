@@ -1,12 +1,11 @@
 package org.apache.spark
 
 import org.scalatest.FunSuite
-import org.apache.spark.scheduler.SparkListener
+import org.apache.spark.scheduler.{SparkListenerJobEnd, SparkListener, SparkListenerRDDCreation}
 import akka.dispatch.{Await, Promise}
 import akka.util.duration._
-import org.apache.spark.rdd.{ParallelCollectionRDD, EmptyRDD}
+import org.apache.spark.rdd.EmptyRDD
 import java.io._
-import org.apache.spark.scheduler.SparkListenerRDDCreation
 
 class EventLoggingSuite extends FunSuite with LocalSparkContext {
   import LocalSparkContext.withSpark
@@ -120,26 +119,29 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
     withLocalSpark { sc =>
       implicit val actorSystem = sc.env.actorSystem
-      val eventProcessed = Promise[Unit]()
+      val allEventsProcessed = Promise[Unit]()
 
       // Add a dummy listener to the end of the SparkListenerBus to indicate
       // that all listeners have been called.
       val listener = new SparkListener {
-        override def onRDDCreation(rddCreation: SparkListenerRDDCreation) {
-          eventProcessed.success(())
+        override def onJobEnd(jobEnd: SparkListenerJobEnd) {
+          allEventsProcessed.success(())
         }
       }
 
       sc.addSparkListener(listener)
-      sc.makeRDD(1 to 3)
+      val r1 = sc.makeRDD(1 to 3)
+      val r2 = r1.map(_ * 2)
+      r2.collect()
 
       // Wait until the EventLogger is finally called
-      assert(Await.result(eventProcessed.future, AwaitTimeout) === ())
+      assert(Await.result(allEventsProcessed.future, AwaitTimeout) === ())
       sc.removeSparkListener(listener)
 
+      // Restore RDDs and re-run the job
       val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
-      val rdd = replayer.rdds.head
-      assert(rdd.collect().toList === List(1, 2, 3))
+      val result = replayer.rdds(1)
+      assert(result.collect().toList === List(2, 4, 6))
     }
   }
 }
