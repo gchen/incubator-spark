@@ -19,6 +19,7 @@ package org.apache.spark.rdd
 
 import org.apache.spark.{OneToOneDependency, SparkContext, Partition, TaskContext}
 import java.io.{ObjectOutputStream, IOException}
+import org.apache.spark.util.Utils.~>
 
 
 private[spark] class ZippedPartition[T: ClassManifest, U: ClassManifest](
@@ -82,4 +83,7 @@ class ZippedRDD[T: ClassManifest, U: ClassManifest](
     rdd1 = null
     rdd2 = null
   }
+
+  override private[spark] def dependenciesUpdated(g: RDD ~> RDD) =
+    new ZippedRDD[T, U](context, g(rdd1), g(rdd2))
 }

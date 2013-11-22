@@ -18,6 +18,7 @@
 package org.apache.spark.rdd
 
 import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.util.Utils.~>
 
 private[spark]
 class MappedRDD[U: ClassManifest, T: ClassManifest](prev: RDD[T], f: T => U)
@@ -27,4 +28,7 @@ class MappedRDD[U: ClassManifest, T: ClassManifest](prev: RDD[T], f: T => U)
 
   override def compute(split: Partition, context: TaskContext) =
     firstParent[T].iterator(split, context).map(f)
+
+  override private[spark] def dependenciesUpdated(g: RDD ~> RDD): RDD[U] =
+    new MappedRDD[U, T](g(prev), f)
 }
