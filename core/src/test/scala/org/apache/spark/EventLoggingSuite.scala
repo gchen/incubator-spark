@@ -269,13 +269,10 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
       sc.addSparkListener(listener)
 
-      try {
+      intercept[SparkException] {
         sc.makeRDD(1 to 4, 2)
           .map(_ => throw new DummyException())
           .collect()
-      }
-      catch {
-        case _: SparkException =>
       }
 
       // Wait until the EventLogger.onJobEnd is finally invoked
