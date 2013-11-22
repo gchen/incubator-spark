@@ -47,6 +47,9 @@ case class SparkListenerJobEnd(job: ActiveJob, jobResult: JobResult)
 case class SparkListenerRDDCreation(rdd: RDD[_], trace: Array[StackTraceElement])
      extends SparkListenerEvents
 
+case class SparkListenerAssertionFailure(rddId: Int, partition: Int, element: Any)
+     extends SparkListenerEvents
+
 trait SparkListener {
   /**
    * Called when a stage is completed, with information on the completed stage

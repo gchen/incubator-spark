@@ -2,7 +2,7 @@ package org.apache.spark
 
 import java.io.{EOFException, PrintWriter, File, FileInputStream}
 
-import org.apache.spark.rdd.RDD
+import org.apache.spark.rdd.{ForallAssertionRDD, RDD}
 import org.apache.spark.scheduler._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable
@@ -137,5 +137,34 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     for (SparkListenerRDDCreation(rdd, trace) <- events) {
       println("#%d: %-20s %s".format(rdd.id, rddType(rdd), firstExternalElement(trace)))
     }
+  }
+
+  private def replace[T: ClassManifest](rdd: RDD[T], newRDD: RDD[T]) {
+    val canonicalId = rddIdToCanonical(rdd.id)
+    _rdds(canonicalId) = newRDD
+    rddIdToCanonical(newRDD.id) = canonicalId
+
+    for (descendantRddIndex <- (canonicalId + 1) until _rdds.length) {
+      val updatedRDD = _rdds(descendantRddIndex).dependenciesUpdated(new (RDD ~> RDD) {
+        def apply[U](dependency: RDD[U]) = {
+          _rdds(rddIdToCanonical(dependency.id)).asInstanceOf[RDD[U]]
+        }
+      })
+
+      _rdds(descendantRddIndex) = updatedRDD
+      rddIdToCanonical(updatedRDD.id) = descendantRddIndex
+    }
+  }
+
+  def assert[T: ClassManifest](rdd: RDD[T], assertion: T => Boolean): RDD[T] = {
+    val rddId = rdd.id
+    val assertionRDD = new ForallAssertionRDD(rdd, { (element: T, partition: Partition) =>
+      if (assertion(element))
+        None
+      else
+        Some(SparkListenerAssertionFailure(rddId, partition.index, element))
+    })
+    replace(rdd, assertionRDD)
+    assertionRDD
   }
 }
