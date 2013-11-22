@@ -9,6 +9,7 @@ import scala.collection.mutable
 import org.apache.spark.scheduler.SparkListenerRDDCreation
 import org.apache.spark.scheduler.SparkListenerTaskStart
 import scala.Some
+import org.apache.spark.util.Utils.~>
 
 class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   private[this] val stream = {
@@ -129,12 +130,12 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   }
 
   def printRDDs() {
+    def firstExternalElement(trace: Array[StackTraceElement]) =
+      trace.tail.find(_.getClass.getPackage == context.getClass.getPackage)
+        .getOrElse(trace.headOption.getOrElse(""))
+
     for (SparkListenerRDDCreation(rdd, trace) <- events) {
       println("#%d: %-20s %s".format(rdd.id, rddType(rdd), firstExternalElement(trace)))
     }
   }
-
-  private[this] def firstExternalElement(trace: Array[StackTraceElement]) =
-    trace.tail.find(_.getClass.getPackage == context.getClass.getPackage)
-      .getOrElse(trace.headOption.getOrElse(""))
 }
