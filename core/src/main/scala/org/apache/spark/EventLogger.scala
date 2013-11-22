@@ -42,7 +42,9 @@ class EventLogger(eventLogPath: String) extends SparkListener with Logging {
 
   override def onTaskGettingResult(taskGettingResult: SparkListenerTaskGettingResult) { }
 
-  override def onTaskEnd(taskEnd: SparkListenerTaskEnd) { }
+  override def onTaskEnd(taskEnd: SparkListenerTaskEnd) {
+    logEvent(taskEnd)
+  }
 
   override def onJobStart(jobStart: SparkListenerJobStart) { }
 
