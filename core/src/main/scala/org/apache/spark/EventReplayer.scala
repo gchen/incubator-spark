@@ -7,7 +7,6 @@ import org.apache.spark.scheduler._
 import scala.collection.mutable.ArrayBuffer
 import scala.collection.mutable
 import org.apache.spark.scheduler.SparkListenerRDDCreation
-import org.apache.spark.EventLogInputStream
 import org.apache.spark.scheduler.SparkListenerTaskStart
 import scala.Some
 
@@ -74,7 +73,19 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     }
   }
 
-  def appendEvent(event: SparkListenerEvents) {
+  /**
+   * All task failures caused by some unhandled exception.
+   */
+  def exceptionFailures() =
+    for {
+      SparkListenerTaskEnd(task, reason, info, _) <- events
+      exceptionFailure <- reason match {
+        case r: ExceptionFailure => Some(r)
+        case _ => None
+      }
+    } yield (task, exceptionFailure)
+
+  private[spark] def appendEvent(event: SparkListenerEvents) {
     _events += event
     event match {
       case SparkListenerRDDCreation(rdd, _) =>
