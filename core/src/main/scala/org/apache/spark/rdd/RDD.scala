@@ -17,6 +17,7 @@
 
 package org.apache.spark.rdd
 
+import java.io.ObjectInputStream
 import java.util.Random
 
 import scala.collection.Map
@@ -40,7 +41,6 @@ import org.apache.spark.partial.PartialResult
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.{Utils, BoundedPriorityQueue}
 
-import java.io.{ObjectOutputStream, ObjectInputStream}
 import org.apache.spark._
 import org.apache.spark.SparkContext._
 import org.apache.spark.util.Utils.~>
@@ -1000,13 +1000,6 @@ abstract class RDD[T: ClassManifest](
 
   def toJavaRDD() : JavaRDD[T] = {
     new JavaRDD(this)(elementClassManifest)
-  }
-
-  private def writeObject(stream: ObjectOutputStream) {
-    // Call `dependencies` by force to initialize this.dependencies_.
-    // Otherwise RDD dependencies may not be serialized because `this.deps` is transient.
-    dependencies
-    stream.defaultWriteObject()
   }
 
   private def readObject(stream: ObjectInputStream) {
