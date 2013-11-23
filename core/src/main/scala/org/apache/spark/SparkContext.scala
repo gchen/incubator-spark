@@ -778,7 +778,10 @@ class SparkContext(
 
   /** Shut down the SparkContext. */
   def stop() {
-    eventLogger.foreach(_.close())
+    eventLogger.foreach { logger =>
+      removeSparkListener(logger)
+      logger.close()
+    }
     eventLogger = None
     ui.stop()
     // Do this only if not stopped already - best case effort.
