@@ -5,7 +5,7 @@ import org.scalatest.FunSuite
 import org.apache.spark.scheduler._
 import akka.dispatch.{Await, Promise}
 import akka.util.duration._
-import org.apache.spark.rdd.EmptyRDD
+import org.apache.spark.rdd.ParallelCollectionRDD
 import java.io._
 
 class DummyException extends Exception
@@ -39,7 +39,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
     System.clearProperty("spark.eventLogging.eventLogPath")
   }
 
-  test("A SparkListenerRDDCreation event should be posted when an RDD is created") {
+  test("A SparkListenerJobStart event should be posted when a job is started") {
     disableEventLogging()
 
     withLocalSpark { sc =>
@@ -47,14 +47,12 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       val eventPosted = Promise[Unit]()
 
       sc.addSparkListener(new SparkListener {
-        override def onRDDCreation(rddCreation: SparkListenerRDDCreation) {
+        override def onJobStart(jobStart: SparkListenerJobStart) {
           eventPosted.success(())
         }
       })
 
-      new EmptyRDD[Unit](sc)
-
-      // Wait until the EventLogger.onRDDCreation is finally called
+      sc.makeRDD(1 to 3).collect()
       assert(Await.result(eventPosted.future, AwaitTimeout) === ())
     }
   }
@@ -67,22 +65,21 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       // Add a dummy listener to the end of the SparkListenerBus to indicate
       // that all listeners have been called.
       sc.addSparkListener(new SparkListener {
-        override def onRDDCreation(rddCreation: SparkListenerRDDCreation) {
+        override def onJobEnd(jobEnd: SparkListenerJobEnd) {
           eventProcessed.success(())
         }
       })
 
-      // Create a new RDD, a SparkListenerRDDCreation event should be written
-      new EmptyRDD[Unit](sc)
+      sc.makeRDD(1 to 3).collect()
 
-      // Wait until the EventLogger.onRDDCreation is finally called
+      // Wait until the EventLogger.onJobStart is finally called
       assert(Await.result(eventProcessed.future, AwaitTimeout) === ())
 
       val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
       assert(replayer.rdds.size === 1)
 
       val rdd = replayer.rdds.head
-      assert(rdd.isInstanceOf[EmptyRDD[_]])
+      assert(rdd.isInstanceOf[ParallelCollectionRDD[_]])
       assert(rdd.context === sc)
     }
   }
@@ -95,37 +92,34 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       // Add a dummy listener to the end of the SparkListenerBus to indicate
       // that all listeners have been called.
       sc.addSparkListener(new SparkListener {
-        override def onRDDCreation(rddCreation: SparkListenerRDDCreation) {
+        override def onJobEnd(jobEnd: SparkListenerJobEnd) {
           eventProcessed.success(())
         }
       })
 
       val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
 
-      // No events are written in the event log
+      // No events are written in the event log yet
       assert(replayer.rdds.size === 0)
 
-      // Create a new RDD, a SparkListenerRDDCreation event should be appended to the replayer
-      new EmptyRDD[Unit](sc)
-
-      // Wait until the EventLogger.onRDDCreation is finally invoked
+      sc.makeRDD(1 to 3).collect()
       assert(Await.result(eventProcessed.future, AwaitTimeout) === ())
 
       assert(replayer.rdds.size === 1)
 
-      val rddCreations = replayer.events.count {
-        case event: SparkListenerRDDCreation => true
+      val jobStartEvent = replayer.events.count {
+        case event: SparkListenerJobStart => true
         case _ => false
       }
-      assert(rddCreations === 1)
+      assert(jobStartEvent === 1)
 
-      val rdd2 = replayer.rdds.head
-      assert(rdd2.isInstanceOf[EmptyRDD[_]])
-      assert(rdd2.context === sc)
+      val rdd = replayer.rdds.head
+      assert(rdd.isInstanceOf[ParallelCollectionRDD[_]])
+      assert(rdd.context === sc)
     }
   }
 
-  test("RDD restored from event log can be used as usual") {
+  test("RDD restored from event log can be reused") {
     withLocalSpark { sc =>
       implicit val actorSystem = sc.env.actorSystem
       val allEventsProcessed = Promise[Unit]()

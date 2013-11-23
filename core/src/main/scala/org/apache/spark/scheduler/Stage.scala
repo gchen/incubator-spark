@@ -44,7 +44,7 @@ private[spark] class Stage(
     val parents: List[Stage],
     val jobId: Int,
     callSite: Option[String])
-  extends Logging {
+  extends Logging with Serializable {
 
   val isShuffleMap = shuffleDep != None
   val numPartitions = rdd.partitions.size

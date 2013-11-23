@@ -3,7 +3,6 @@ package org.apache.spark
 import java.io.{File, FileOutputStream}
 
 import org.apache.spark.scheduler._
-import org.apache.spark.scheduler.SparkListenerRDDCreation
 import org.apache.spark.scheduler.SparkListenerJobEnd
 import org.apache.spark.scheduler.SparkListenerJobStart
 import com.google.common.io.Files
@@ -46,11 +45,11 @@ class EventLogger(eventLogPath: String) extends SparkListener with Logging {
     logEvent(taskEnd)
   }
 
-  override def onJobStart(jobStart: SparkListenerJobStart) { }
+  override def onJobStart(jobStart: SparkListenerJobStart) {
+    logEvent(jobStart)
+  }
 
-  override def onJobEnd(jobEnd: SparkListenerJobEnd) { }
-
-  override def onRDDCreation(rddCreation: SparkListenerRDDCreation) {
-    logEvent(rddCreation)
+  override def onJobEnd(jobEnd: SparkListenerJobEnd) {
+    logEvent(jobEnd)
   }
 }

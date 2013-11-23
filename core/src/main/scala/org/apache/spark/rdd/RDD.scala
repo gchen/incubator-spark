@@ -40,10 +40,9 @@ import org.apache.spark.partial.PartialResult
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.{Utils, BoundedPriorityQueue}
 
-import org.apache.spark.SparkContext._
-import org.apache.spark._
-import org.apache.spark.scheduler.SparkListenerRDDCreation
 import java.io.{ObjectOutputStream, ObjectInputStream}
+import org.apache.spark._
+import org.apache.spark.SparkContext._
 import org.apache.spark.util.Utils.~>
 
 /**
@@ -1003,11 +1002,6 @@ abstract class RDD[T: ClassManifest](
     new JavaRDD(this)(elementClassManifest)
   }
 
-  private[this] def postCreationEvent() {
-    val event = SparkListenerRDDCreation(this, Thread.currentThread().getStackTrace)
-    context.postSparkListenerEvent(event)
-  }
-
   private def writeObject(stream: ObjectOutputStream) {
     // Call `dependencies` by force to initialize this.dependencies_.
     // Otherwise RDD dependencies may not be serialized because `this.deps` is transient.
@@ -1024,6 +1018,4 @@ abstract class RDD[T: ClassManifest](
   }
 
   private[spark] def dependenciesUpdated(g: RDD ~> RDD): RDD[T] = this
-
-  postCreationEvent()
 }

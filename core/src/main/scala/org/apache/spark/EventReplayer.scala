@@ -4,12 +4,12 @@ import java.io.{EOFException, PrintWriter, File, FileInputStream}
 
 import org.apache.spark.rdd.{ForallAssertionRDD, RDD}
 import org.apache.spark.scheduler._
-import scala.collection.mutable.ArrayBuffer
-import scala.collection.mutable
-import org.apache.spark.scheduler.SparkListenerRDDCreation
 import org.apache.spark.scheduler.SparkListenerTaskStart
-import scala.Some
 import org.apache.spark.util.Utils.~>
+import scala.collection.immutable
+import scala.collection.mutable
+import scala.collection.mutable.ArrayBuffer
+import scala.Some
 
 class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   private[this] val stream = {
@@ -86,12 +86,34 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
       }
     } yield (task, exceptionFailure)
 
+  private[this] def collectJobRDDs(job: ActiveJob) = {
+    def visit(rdd: RDD[_], visited: immutable.Set[RDD[_]]): immutable.Set[RDD[_]] =
+      if (!visited.contains(rdd)) {
+        val newVisited = visited + rdd
+        rdd.dependencies.toSet.flatMap { dep: Dependency[_] =>
+          visit(dep.rdd, newVisited)
+        } + rdd
+      }
+      else {
+        immutable.Set()
+      }
+
+    val finalRdd = job.finalStage.rdd
+    val jobRDDs = visit(finalRdd, immutable.Set())
+
+    jobRDDs.foreach { rdd =>
+      _rdds += rdd
+      rddIdToCanonical(rdd.id) = rdd.id
+    }
+  }
+
   private[spark] def appendEvent(event: SparkListenerEvents) {
     _events += event
+
     event match {
-      case SparkListenerRDDCreation(rdd, _) =>
-        _rdds += rdd
-        rddIdToCanonical(rdd.id) = rdd.id
+      case SparkListenerJobStart(job, _) =>
+        // Records all RDDs within the job
+        collectJobRDDs(job)
 
       case _ =>
     }
@@ -112,7 +134,7 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
 
     dot.println("digraph {")
 
-    for (SparkListenerRDDCreation(rdd, trace) <- events) {
+    for (rdd <- rdds) {
       dot.print("%d [label=\"%d %s\"]".format(rdd.id, rdd.id, rddType(rdd)))
       for (dep <- rdd.dependencies) {
         dot.println("  %d -> %d;".format(rdd.id, dep.rdd.id))
@@ -130,12 +152,8 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   }
 
   def printRDDs() {
-    def firstExternalElement(trace: Array[StackTraceElement]) =
-      trace.tail.find(_.getClass.getPackage == context.getClass.getPackage)
-        .getOrElse(trace.headOption.getOrElse(""))
-
-    for (SparkListenerRDDCreation(rdd, trace) <- events) {
-      println("#%d: %-20s %s".format(rdd.id, rddType(rdd), firstExternalElement(trace)))
+    for (rdd <- rdds) {
+      println("#%d: %-20s".format(rdd.id, rddType(rdd)))
     }
   }
 

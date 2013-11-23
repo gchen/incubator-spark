@@ -44,9 +44,6 @@ case class SparkListenerJobStart(job: ActiveJob, properties: Properties = null)
 case class SparkListenerJobEnd(job: ActiveJob, jobResult: JobResult)
      extends SparkListenerEvents
 
-case class SparkListenerRDDCreation(rdd: RDD[_], trace: Array[StackTraceElement])
-     extends SparkListenerEvents
-
 case class SparkListenerAssertionFailure(rddId: Int, partition: Int, element: Any)
      extends SparkListenerEvents
 
@@ -86,11 +83,6 @@ trait SparkListener {
    * Called when a job ends
    */
   def onJobEnd(jobEnd: SparkListenerJobEnd) { }
-
-  /**
-   * Called when an RDD is created
-   */
-  def onRDDCreation(rddCreation: SparkListenerRDDCreation) { }
 }
 
 /**
