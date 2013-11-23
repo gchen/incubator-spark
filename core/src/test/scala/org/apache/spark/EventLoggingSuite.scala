@@ -1,13 +1,12 @@
 package org.apache.spark
 
-import org.scalatest.FunSuite
-
-import org.apache.spark.scheduler._
-import akka.dispatch.{Await, Promise}
-import akka.util.duration._
-import org.apache.spark.rdd.ParallelCollectionRDD
 import java.io._
 import java.util.concurrent.CountDownLatch
+
+import akka.util.duration._
+import org.apache.spark.rdd.ParallelCollectionRDD
+import org.apache.spark.scheduler._
+import org.scalatest.FunSuite
 
 class DummyException extends Exception
 
