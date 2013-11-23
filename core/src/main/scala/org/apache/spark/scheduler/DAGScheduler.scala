@@ -393,11 +393,11 @@ class DAGScheduler(
         logInfo("Final stage: " + finalStage + " (" + finalStage.name + ")")
         logInfo("Parents of final stage: " + finalStage.parents)
         logInfo("Missing parents: " + getMissingParentStages(finalStage))
+        listenerBus.post(SparkListenerJobStart(job, properties))
         if (allowLocal && finalStage.parents.size == 0 && partitions.length == 1) {
           // Compute very short actions like first() or take() with no parent stages locally.
           runLocally(job)
         } else {
-          listenerBus.post(SparkListenerJobStart(job, properties))
           idToActiveJob(jobId) = job
           activeJobs += job
           resultStageToJob(finalStage) = job
