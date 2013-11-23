@@ -9,14 +9,15 @@ import org.apache.spark.util.Utils.~>
 import scala.collection.immutable
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
-import scala.Some
 
 class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   private[this] val stream = {
     if (eventLogPath == null) {
       eventLogPath = System.getProperty("spark.eventLogging.eventLogPath")
 
-      require(eventLogPath != null, "Please specify the event log path, " +
+      require(
+        eventLogPath != null,
+        "Please specify the event log path, " +
         "either by setting the \"spark.eventLogging.eventLogPath\", " +
         "or by constructing EventReplayer with a legal event log path")
     }
@@ -86,22 +87,40 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
       }
     } yield (task, exceptionFailure)
 
-  private[this] def collectJobRDDs(job: ActiveJob) = {
-    def visit(rdd: RDD[_], visited: immutable.Set[RDD[_]]): immutable.Set[RDD[_]] =
-      if (!visited.contains(rdd)) {
-        val newVisited = visited + rdd
-        rdd.dependencies.toSet.flatMap { dep: Dependency[_] =>
-          visit(dep.rdd, newVisited)
-        } + rdd
+  private[this] def collectJobRDDs(job: ActiveJob) {
+    def collectJobStages(stage: Stage, visited: Set[Stage]): Set[Stage] =
+      if (!visited.contains(stage)) {
+        val newVisited = visited + stage
+        val ancestorStages = for {
+          parent <- stage.parents.toSet[Stage]
+          ancestor <- collectJobStages(parent, newVisited)
+        } yield ancestor
+        ancestorStages + stage
       }
       else {
-        immutable.Set()
+        Set.empty[Stage]
       }
 
-    val finalRdd = job.finalStage.rdd
-    val jobRDDs = visit(finalRdd, immutable.Set())
+    def collectStageRDDs(rdd: RDD[_], visited: Set[RDD[_]]): Set[RDD[_]] =
+      if (!visited.contains(rdd)) {
+        val newVisited = visited + rdd
+        val ancestorRDDs = for {
+          dep <- rdd.dependencies.toSet[Dependency[_]]
+          ancestor <- dep match {
+            case _: ShuffleDependency[_, _] => Set.empty[RDD[_]]
+            case _ => collectStageRDDs(dep.rdd, newVisited)
+          }
+        } yield ancestor
+        ancestorRDDs + rdd
+      }
+      else {
+        Set.empty[RDD[_]]
+      }
 
-    jobRDDs.foreach { rdd =>
+    for {
+      stage <- collectJobStages(job.finalStage, Set.empty[Stage])
+      rdd <- collectStageRDDs(stage.rdd, Set.empty[RDD[_]])
+    } {
       _rdds += rdd
       rddIdToCanonical(rdd.id) = rdd.id
     }
