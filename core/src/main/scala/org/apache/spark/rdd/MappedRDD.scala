@@ -30,5 +30,5 @@ class MappedRDD[U: ClassManifest, T: ClassManifest](prev: RDD[T], f: T => U)
     firstParent[T].iterator(split, context).map(f)
 
   override private[spark] def dependenciesUpdated(g: RDD ~> RDD): RDD[U] =
-    new MappedRDD[U, T](g(prev), f)
+    new MappedRDD[U, T](g(firstParent), f)
 }
