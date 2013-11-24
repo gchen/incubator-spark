@@ -1,7 +1,7 @@
 package org.apache.spark
 
 import java.io._
-import java.util.concurrent.CountDownLatch
+import java.util.concurrent.{TimeUnit, CountDownLatch}
 
 import akka.util.duration._
 import org.apache.spark.rdd.ParallelCollectionRDD
@@ -15,7 +15,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
   var eventLogFile: File = _
 
-  val AwaitTimeout = 10.seconds
+  val AwaitTimeout = 10.seconds.toMillis
 
   override def beforeEach() {
     eventLogFile = File.createTempFile("spark-event-", ".log")
@@ -52,7 +52,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       })
 
       sc.makeRDD(1 to 3).collect()
-      eventPosted.await()
+      assert(eventPosted.await(AwaitTimeout, TimeUnit.MILLISECONDS))
     }
   }
 
@@ -71,7 +71,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       sc.makeRDD(1 to 3).collect()
 
       // Wait until the EventLogger.onJobStart is finally called
-      eventProcessed.await()
+      assert(eventProcessed.await(AwaitTimeout, TimeUnit.MILLISECONDS))
 
       val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
       assert(replayer.rdds.size === 1)
@@ -100,7 +100,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       assert(replayer.rdds.size === 0)
 
       sc.makeRDD(1 to 3).collect()
-      eventProcessed.await()
+      assert(eventProcessed.await(AwaitTimeout, TimeUnit.MILLISECONDS))
 
       assert(replayer.rdds.size === 1)
 
@@ -135,7 +135,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
         .collect()
 
       // Wait until the EventLogger.onJobEnd is finally invoked
-      allEventsProcessed.await()
+      assert(allEventsProcessed.await(AwaitTimeout, TimeUnit.MILLISECONDS))
       sc.removeSparkListener(listener)
 
       // Restore RDDs and re-run the job
@@ -164,7 +164,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       r2.collect()
 
       // Wait until the EventLogger.onJobEnd is finally invoked
-      allEventsProcessed.await()
+      assert(allEventsProcessed.await(AwaitTimeout, TimeUnit.MILLISECONDS))
       sc.removeSparkListener(listener)
     }
 
@@ -202,7 +202,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       r5.collect()
 
       // Wait until the EventLogger.onJobEnd is finally invoked
-      allEventsProcessed.await()
+      assert(allEventsProcessed.await(AwaitTimeout, TimeUnit.MILLISECONDS))
       sc.removeSparkListener(listener)
 
       // Restore RDDs and re-run the job
@@ -231,7 +231,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
         .collect()
 
       // Wait until the EventLogger.onJobEnd is finally invoked
-      allEventsProcessed.await()
+      assert(allEventsProcessed.await(AwaitTimeout, TimeUnit.MILLISECONDS))
       sc.removeSparkListener(listener)
 
       val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
@@ -241,6 +241,20 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
       assert(taskEvents.size === 2)
     }
+  }
+
+  def installEventProcessedSignal(context: SparkContext) = {
+    val allEventsProcessed = new CountDownLatch(1)
+
+    // Add a dummy listener to the end of the SparkListenerBus to indicate
+    // that all listeners have been called.
+    val listener = new SparkListener {
+      override def onJobEnd(jobEnd: SparkListenerJobEnd) {
+        allEventsProcessed.countDown()
+      }
+    }
+
+    context.addSparkListener(listener)
   }
 
   test("Exception failures should be recorded") {
@@ -264,7 +278,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       }
 
       // Wait until the EventLogger.onJobEnd is finally invoked
-      allEventsProcessed.await()
+      assert(allEventsProcessed.await(AwaitTimeout, TimeUnit.MILLISECONDS))
       sc.removeSparkListener(listener)
 
       val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
@@ -272,9 +286,40 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
       assert(failures.size > 0)
 
-      failures.foreach { case (task, ExceptionFailure(className, _, _, _)) =>
+      for ((task, ExceptionFailure(className, _, _, _)) <- failures) {
         assert(className === classOf[DummyException].getName)
       }
+    }
+  }
+
+  test("Restore RDDs with wide dependencies") {
+    withLocalSpark { sc =>
+      val allEventsProcessed = new CountDownLatch(1)
+
+      val listener = new SparkListener {
+        override def onJobEnd(jobEnd: SparkListenerJobEnd) {
+          allEventsProcessed.countDown()
+        }
+      }
+
+      sc.addSparkListener(listener)
+
+      val r1 = sc.makeRDD(1 to 4)
+      val r2 = r1.groupBy(n => if (n % 2 == 0) (0, n) else (1, n))
+      val expected = r2.collect()
+
+      assert(allEventsProcessed.await(AwaitTimeout, TimeUnit.MILLISECONDS))
+      sc.removeSparkListener(listener)
+
+      val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
+
+      // 4 RDDs in total:
+      // - makeRDD: ParallelCollectionRDD
+      // - groupBy: MappedRDD
+      //            ShuffledRDD
+      //            MapPartitionsWithContextRDD
+      assert(replayer.rdds.size === 4)
+      assert(replayer.rdds.last.collect() === expected)
     }
   }
 }
