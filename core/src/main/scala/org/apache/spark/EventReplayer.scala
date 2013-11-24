@@ -1,12 +1,11 @@
 package org.apache.spark
 
-import java.io.{EOFException, PrintWriter, File, FileInputStream}
+import java.io.{EOFException, File, FileInputStream, PrintWriter}
 
 import org.apache.spark.rdd.{ForallAssertionRDD, RDD}
 import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.SparkListenerTaskStart
 import org.apache.spark.util.Utils.~>
-import scala.collection.immutable
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 
@@ -67,7 +66,6 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
       while (true) {
         val event = stream.readObject().asInstanceOf[SparkListenerEvents]
         appendEvent(event)
-        // TODO Lian: According to Arthur, should check for checksum mismatch here, but I doubt...
       }
     }
     catch {
@@ -80,7 +78,7 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
    */
   def exceptionFailures() =
     for {
-      SparkListenerTaskEnd(task, reason, info, _) <- events
+      SparkListenerTaskEnd(task, reason, _, _) <- events
       exceptionFailure <- reason match {
         case r: ExceptionFailure => Some(r)
         case _ => None
@@ -176,7 +174,7 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     }
   }
 
-  private def replace[T: ClassManifest](rdd: RDD[T], newRDD: RDD[T]) {
+  private[this] def replace[T: ClassManifest](rdd: RDD[T], newRDD: RDD[T]) {
     val canonicalId = rddIdToCanonical(rdd.id)
     _rdds(canonicalId) = newRDD
     rddIdToCanonical(newRDD.id) = canonicalId
