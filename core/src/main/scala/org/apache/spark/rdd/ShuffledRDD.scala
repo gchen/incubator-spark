@@ -18,6 +18,7 @@
 package org.apache.spark.rdd
 
 import org.apache.spark.{Dependency, Partitioner, SparkEnv, ShuffleDependency, Partition, TaskContext}
+import org.apache.spark.util.Utils.~>
 
 
 private[spark] class ShuffledRDDPartition(val idx: Int) extends Partition {
@@ -64,4 +65,7 @@ class ShuffledRDD[K, V, P <: Product2[K, V] : ClassManifest](
     super.clearDependencies()
     prev = null
   }
+
+  override private[spark] def dependenciesUpdated(g: RDD ~> RDD) =
+    new ShuffledRDD[K, V, P](g(firstParent), partitioner.get)
 }

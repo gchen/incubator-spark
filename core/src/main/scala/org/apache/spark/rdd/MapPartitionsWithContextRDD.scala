@@ -18,6 +18,7 @@
 package org.apache.spark.rdd
 
 import org.apache.spark.{Partition, TaskContext}
+import org.apache.spark.util.Utils.~>
 
 
 /**
@@ -38,4 +39,7 @@ class MapPartitionsWithContextRDD[U: ClassManifest, T: ClassManifest](
 
   override def compute(split: Partition, context: TaskContext) =
     f(context, firstParent[T].iterator(split, context))
+
+  override private[spark] def dependenciesUpdated(g: RDD ~> RDD) =
+    new MapPartitionsWithContextRDD[U, T](g(firstParent), f, preservesPartitioning)
 }

@@ -24,6 +24,7 @@ import scala.collection.mutable.ArrayBuffer
 import org.apache.spark.{InterruptibleIterator, Partition, Partitioner, SparkEnv, TaskContext}
 import org.apache.spark.{Dependency, OneToOneDependency, ShuffleDependency}
 import org.apache.spark.util.AppendOnlyMap
+import org.apache.spark.util.Utils.~>
 
 
 private[spark] sealed trait CoGroupSplitDep extends Serializable
@@ -137,4 +138,9 @@ class CoGroupedRDD[K](@transient var rdds: Seq[RDD[_ <: Product2[K, _]]], part: 
     super.clearDependencies()
     rdds = null
   }
+
+  override private[spark] def dependenciesUpdated(g: RDD ~> RDD) =
+    new CoGroupedRDD(
+      dependencies.map(dep => g(dep.rdd).asInstanceOf[RDD[_ <: Product2[K, _]]]),
+      partitioner.get)
 }

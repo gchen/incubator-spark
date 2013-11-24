@@ -84,6 +84,11 @@ class ZippedRDD[T: ClassManifest, U: ClassManifest](
     rdd2 = null
   }
 
-  override private[spark] def dependenciesUpdated(g: RDD ~> RDD) =
-    new ZippedRDD[T, U](context, g(rdd1), g(rdd2))
+  override private[spark] def dependenciesUpdated(g: RDD ~> RDD) = {
+    val Seq(_rdd1, _rdd2) = dependencies
+    new ZippedRDD[T, U](
+      context,
+      g(_rdd1.asInstanceOf[RDD[T]]),
+      g(_rdd2.asInstanceOf[RDD[U]]))
+  }
 }

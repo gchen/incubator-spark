@@ -27,6 +27,7 @@ import scala.io.Source
 
 import org.apache.spark.{SparkEnv, Partition, TaskContext}
 import org.apache.spark.broadcast.Broadcast
+import org.apache.spark.util.Utils.~>
 
 
 /**
@@ -110,6 +111,9 @@ class PipedRDD[T: ClassManifest](
       }
     }
   }
+
+  override private[spark] def dependenciesUpdated(g: RDD ~> RDD) =
+    new PipedRDD(g(firstParent), command, envVars, printPipeContext, printRDDElement)
 }
 
 object PipedRDD {

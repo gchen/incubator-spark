@@ -17,6 +17,6 @@ class ForallAssertionRDD[T: ClassManifest](
 
   protected def getPartitions: Array[Partition] = prev.partitions
 
-  override private[spark] def dependenciesUpdated(g: ~>[RDD, RDD]) =
+  override private[spark] def dependenciesUpdated(g: RDD ~> RDD) =
     new ForallAssertionRDD[T](g(firstParent), assertion)
 }

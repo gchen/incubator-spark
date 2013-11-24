@@ -18,6 +18,7 @@
 package org.apache.spark.rdd
 
 import org.apache.spark.{NarrowDependency, SparkEnv, Partition, TaskContext}
+import org.apache.spark.util.Utils.~>
 
 
 class PartitionPruningRDDPartition(idx: Int, val parentSplit: Partition) extends Partition {
@@ -57,6 +58,9 @@ class PartitionPruningRDD[T: ClassManifest](
 
   override protected def getPartitions: Array[Partition] =
     getDependencies.head.asInstanceOf[PruneDependency[T]].partitions
+
+  override private[spark] def dependenciesUpdated(g: RDD ~> RDD) =
+    new PartitionPruningRDD(g(firstParent), partitionFilterFunc)
 }
 
 

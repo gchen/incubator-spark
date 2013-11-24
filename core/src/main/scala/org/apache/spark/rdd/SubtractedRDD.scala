@@ -27,6 +27,7 @@ import org.apache.spark.Partition
 import org.apache.spark.SparkEnv
 import org.apache.spark.ShuffleDependency
 import org.apache.spark.OneToOneDependency
+import org.apache.spark.util.Utils.~>
 
 
 /**
@@ -125,4 +126,11 @@ private[spark] class SubtractedRDD[K: ClassManifest, V: ClassManifest, W: ClassM
     rdd2 = null
   }
 
+  override private[spark] def dependenciesUpdated(g: RDD ~> RDD) = {
+    val Seq(_rdd1, _rdd2) = dependencies.map(_.rdd)
+    new SubtractedRDD(
+      g(_rdd1.asInstanceOf[RDD[_ <: Product2[K, V]]]),
+      g(_rdd2.asInstanceOf[RDD[_ <: Product2[K, W]]]),
+      partitioner.get)
+  }
 }
