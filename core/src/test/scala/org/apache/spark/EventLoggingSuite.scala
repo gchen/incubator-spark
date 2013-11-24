@@ -243,20 +243,6 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
     }
   }
 
-  def installEventProcessedSignal(context: SparkContext) = {
-    val allEventsProcessed = new CountDownLatch(1)
-
-    // Add a dummy listener to the end of the SparkListenerBus to indicate
-    // that all listeners have been called.
-    val listener = new SparkListener {
-      override def onJobEnd(jobEnd: SparkListenerJobEnd) {
-        allEventsProcessed.countDown()
-      }
-    }
-
-    context.addSparkListener(listener)
-  }
-
   test("Exception failures should be recorded") {
     withLocalSpark { sc =>
       val allEventsProcessed = new CountDownLatch(1)
