@@ -24,6 +24,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
   override def afterEach() {
     eventLogFile.delete()
+    disableEventLogging()
   }
 
   def withLocalSpark[T](f: SparkContext => T) =
