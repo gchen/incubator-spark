@@ -44,9 +44,6 @@ case class SparkListenerJobStart(job: ActiveJob, properties: Properties = null)
 case class SparkListenerJobEnd(job: ActiveJob, jobResult: JobResult)
      extends SparkListenerEvents
 
-case class SparkListenerAssertionFailure(rddId: Int, partition: Int, element: Any)
-     extends SparkListenerEvents
-
 trait SparkListener {
   /**
    * Called when a stage is completed, with information on the completed stage

@@ -2,16 +2,15 @@ package org.apache.spark.rdd
 
 import org.apache.spark.{TaskContext, Partition}
 import org.apache.spark.util.Utils.~>
-import org.apache.spark.scheduler.SparkListenerAssertionFailure
 
 class ForallAssertionRDD[T: ClassManifest](
     prev: RDD[T],
-    assertion: (T, Partition) => Option[SparkListenerAssertionFailure])
+    assertion: (T, Partition) => Unit)
   extends RDD[T](prev) { self =>
 
   def compute(split: Partition, context: TaskContext): Iterator[T] =
     prev.iterator(split, context).map { element =>
-      assertion(element, split).foreach(self.context.postSparkListenerEvent)
+      assertion(element, split)
       element
     }
 

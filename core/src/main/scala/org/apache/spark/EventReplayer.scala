@@ -1,13 +1,16 @@
 package org.apache.spark
 
 import java.io.{EOFException, File, FileInputStream, PrintWriter}
+import java.util.concurrent.ConcurrentHashMap
 
 import org.apache.spark.rdd.{ForallAssertionRDD, RDD}
 import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.SparkListenerTaskStart
 import org.apache.spark.util.Utils.~>
-import scala.collection.mutable
+import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
+
+case class AssertionFailure(rddId: Int, partition: Int, element: Any)
 
 class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   private[this] val stream = {
@@ -28,7 +31,11 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
 
   private[this] val _rdds = new ArrayBuffer[RDD[_]]
 
-  private[this] val rddIdToCanonical = new mutable.HashMap[Int, Int]
+  private[this] val taskEndReasons = new ConcurrentHashMap[Task[_], TaskEndReason]
+
+  private[this] val rddIdToCanonical = new ConcurrentHashMap[Int, Int]
+
+  val tasks = new ConcurrentHashMap[(Int, Int), Task[_]]
 
   context.eventLogger.foreach(_.registerEventReplayer(this))
   loadEvents()
@@ -37,11 +44,9 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
 
   def events = _events.readOnly
 
-  def tasks = for (SparkListenerTaskStart(task, _) <- events) yield task
-
-  def tasksForRDD(rdd: RDD[_]): Seq[Task[_]] =
+  def tasksForRDD(rdd: RDD[_]) =
     for {
-      task <- tasks
+      task <- tasks.values
       taskRDD <- task match {
         case t: ResultTask[_, _] => Some(t.rdd)
         case t: ShuffleMapTask => Some(t.rdd)
@@ -50,16 +55,8 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
       if taskRDD.id == rdd.id
     } yield task
 
-  def taskWithId(stageId: Int, partition: Int): Option[Task[_]] =
-    (for {
-      task <- tasks
-      (taskStageId, taskPartition) <- task match {
-        case t: ResultTask[_, _] => Some((t.stageId, t.partitionId))
-        case t: ShuffleMapTask => Some((t.stageId, t.partitionId))
-        case _ => None
-      }
-      if taskStageId == stageId && taskPartition == partition
-    } yield task).headOption
+  def taskWithId(stageId: Int, partitionId: Int): Option[Task[_]] =
+    Option(tasks.get((stageId, partitionId)))
 
   private[this] def loadEvents() {
     try {
@@ -72,18 +69,6 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
       case _: EOFException => stream.close()
     }
   }
-
-  /**
-   * All task failures caused by some unhandled exception.
-   */
-  def exceptionFailures() =
-    for {
-      SparkListenerTaskEnd(task, reason, _, _) <- events
-      exceptionFailure <- reason match {
-        case r: ExceptionFailure => Some(r)
-        case _ => None
-      }
-    } yield (task, exceptionFailure)
 
   private[this] def collectJobRDDs(job: ActiveJob) {
     def collectJobStages(stage: Stage, visited: Set[Stage]): Set[Stage] =
@@ -128,6 +113,12 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     _events += event
 
     event match {
+      case SparkListenerTaskStart(task, _) =>
+        tasks((task.stageId, task.partitionId)) = task
+
+      case SparkListenerTaskEnd(task, reason, _, _) =>
+        taskEndReasons(task) = reason
+
       case SparkListenerJobStart(job, _) =>
         // Records all RDDs within the job
         collectJobRDDs(job)
@@ -192,12 +183,15 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   }
 
   def assert[T: ClassManifest](rdd: RDD[T], assertion: T => Boolean): RDD[T] = {
-    val rddId = rdd.id
     val assertionRDD = new ForallAssertionRDD(rdd, { (element: T, partition: Partition) =>
-      if (assertion(element))
-        None
-      else
-        Some(SparkListenerAssertionFailure(rddId, partition.index, element))
+      if (!assertion(element))
+        throw new AssertionError(
+          """Replay assertion failed:
+            |  Element: %s
+            |  RDD class: %s
+            |  RDD ID: %d
+            |  Partition inex: %d
+          """.stripMargin.format(element, rddType(rdd), rdd.id, partition.index))
     })
     replace(rdd, assertionRDD)
     assertionRDD
