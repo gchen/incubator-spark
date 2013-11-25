@@ -302,9 +302,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
       // 4 RDDs in total:
       // - makeRDD: ParallelCollectionRDD
-      // - groupBy: MappedRDD
-      //            ShuffledRDD
-      //            MapPartitionsWithContextRDD
+      // - groupBy: MappedRDD, ShuffledRDD & MapPartitionsWithContextRDD
       assert(replayer.rdds.size === 4)
       assert(replayer.rdds.last.collect() === expected)
     }
