@@ -183,8 +183,9 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   }
 
   def assertForall[T: ClassManifest](rdd: RDD[_])(assertion: T => Boolean): RDD[T] = {
-    val assertionRDD = new ForallAssertionRDD(rdd.asInstanceOf[RDD[T]], assertion)
-    replace(rdd, assertionRDD)
+    val typedRDD = rdd.asInstanceOf[RDD[T]]
+    val assertionRDD = new ForallAssertionRDD(typedRDD, assertion)
+    replace(typedRDD, assertionRDD)
     assertionRDD
   }
 }
