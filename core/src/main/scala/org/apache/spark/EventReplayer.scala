@@ -136,7 +136,7 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
    *               refer to GraphViz documentation for all supported file formats.
    * @return The absolution file path of the output file
    */
-  def visualizeRDDs(format: String = "pdf") = {
+  def visualizeRDDs(path: String = null, format: String = "pdf") = {
     val dotFile = File.createTempFile("spark-rdds-", "")
     val dot = new PrintWriter(dotFile)
 
@@ -153,10 +153,12 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     dot.close()
 
     val dotFilePath = dotFile.getAbsolutePath
-    Runtime.getRuntime.exec("dot -Grankdir=BT -T%s %s -o %s.%s"
-      .format(format, dotFilePath, dotFilePath, format)).waitFor()
+    val outFilePath = if (path == null) dotFile.getAbsolutePath + "." + format else path
 
-    dotFilePath + "." + format
+    Runtime.getRuntime.exec("dot -Grankdir=BT -T%s %s -o %s"
+      .format(format, dotFilePath, outFilePath)).waitFor()
+
+    outFilePath
   }
 
   def printRDDs() {
