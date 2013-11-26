@@ -31,16 +31,16 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
 
   private[this] val _rdds = new ArrayBuffer[RDD[_]]
 
-  private[this] val taskEndReasons = new ConcurrentHashMap[Task[_], TaskEndReason]
-
   private[this] val rddIdToCanonical = new ConcurrentHashMap[Int, Int]
 
   val tasks = new ConcurrentHashMap[(Int, Int), Task[_]]
 
+  val taskEndReasons = new ConcurrentHashMap[Task[_], TaskEndReason]
+
   context.eventLogger.foreach(_.registerEventReplayer(this))
   loadEvents()
 
-  def rdds = _rdds.readOnly
+  def rdds = _rdds.readOnly.sortBy(_.id)
 
   def events = _events.readOnly
 
@@ -182,17 +182,8 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     }
   }
 
-  def assert[T: ClassManifest](rdd: RDD[T], assertion: T => Boolean): RDD[T] = {
-    val assertionRDD = new ForallAssertionRDD(rdd, { (element: T, partition: Partition) =>
-      if (!assertion(element))
-        throw new AssertionError(
-          """Replay assertion failed:
-            |  Element: %s
-            |  RDD class: %s
-            |  RDD ID: %d
-            |  Partition inex: %d
-          """.stripMargin.format(element, rddType(rdd), rdd.id, partition.index))
-    })
+  def assert[T: ClassManifest](rdd: RDD[_])(assertion: T => Boolean): RDD[T] = {
+    val assertionRDD = new ForallAssertionRDD(rdd.asInstanceOf[RDD[T]], assertion)
     replace(rdd, assertionRDD)
     assertionRDD
   }
