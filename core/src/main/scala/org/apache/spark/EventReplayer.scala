@@ -30,9 +30,9 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
 
   private[this] val _events = new ArrayBuffer[SparkListenerEvents]
 
-  private[this] val _rdds = new ArrayBuffer[RDD[_]]
-
   private[this] val rddIdToCanonical = new ConcurrentHashMap[Int, Int]
+
+  val rdds = new ConcurrentHashMap[Int, RDD[_]]
 
   val tasks = new ConcurrentHashMap[(Int, Int), Task[_]]
 
@@ -40,8 +40,6 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
 
   context.eventLogger.foreach(_.registerEventReplayer(this))
   loadEvents()
-
-  def rdds = _rdds.readOnly.sortBy(_.id)
 
   def events = _events.readOnly
 
@@ -105,7 +103,8 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
       stage <- collectJobStages(job.finalStage, Set.empty[Stage])
       rdd <- collectStageRDDs(stage.rdd, Set.empty[RDD[_]])
     } {
-      _rdds += rdd
+      context.updateRddId(rdd.id)
+      rdds(rdd.id) = rdd
       rddIdToCanonical(rdd.id) = rdd.id
     }
   }
@@ -153,7 +152,7 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     dot.println("digraph {")
     dot.println("  node[shape=rectangle]")
 
-    for (rdd <- rdds) {
+    for (rdd <- rdds.values()) {
       dot.println("  %d [label=\"#%d: %s\\n%s\"]"
         .format(rdd.id, rdd.id, rdd.getClass.getSimpleName, rdd.origin))
       for (dep <- rdd.dependencies) {
@@ -171,24 +170,24 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   }
 
   def printRDDs() {
-    for (rdd <- rdds) {
-      println("#%d: %-20s".format(rdd.id, rddType(rdd)))
+    for (rdd <- rdds.values()) {
+      println("#%d: %s %s".format(rdd.id, rddType(rdd), rdd.origin))
     }
   }
 
   private[this] def replace[T: ClassManifest](rdd: RDD[T], newRDD: RDD[T]) {
     val canonicalId = rddIdToCanonical(rdd.id)
-    _rdds(canonicalId) = newRDD
+    rdds(canonicalId) = newRDD
     rddIdToCanonical(newRDD.id) = canonicalId
 
-    for (descendantRddIndex <- (canonicalId + 1) until _rdds.length) {
-      val updatedRDD = _rdds(descendantRddIndex).dependenciesUpdated(new (RDD ~> RDD) {
+    for (descendantRddIndex <- (canonicalId + 1) until rdds.size()) {
+      val updatedRDD = rdds(descendantRddIndex).dependenciesUpdated(new (RDD ~> RDD) {
         def apply[U](dependency: RDD[U]) = {
-          _rdds(rddIdToCanonical(dependency.id)).asInstanceOf[RDD[U]]
+          rdds(rddIdToCanonical(dependency.id)).asInstanceOf[RDD[U]]
         }
       })
 
-      _rdds(descendantRddIndex) = updatedRDD
+      rdds(descendantRddIndex) = updatedRDD
       rddIdToCanonical(updatedRDD.id) = descendantRddIndex
     }
   }

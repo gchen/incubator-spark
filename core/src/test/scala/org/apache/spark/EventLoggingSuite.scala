@@ -4,7 +4,7 @@ import java.io._
 import java.util.concurrent.{TimeUnit, CountDownLatch}
 
 import akka.util.duration._
-import org.apache.spark.rdd.{ParallelCollectionRDD, RDD}
+import org.apache.spark.rdd.ParallelCollectionRDD
 import org.apache.spark.scheduler._
 import org.scalatest.FunSuite
 import scala.collection.JavaConversions._
@@ -68,7 +68,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
       assert(replayer.rdds.size === 1)
 
-      val rdd = replayer.rdds.head
+      val rdd = replayer.rdds(0)
       assert(rdd.isInstanceOf[ParallelCollectionRDD[_]])
       assert(rdd.context === sc)
     }
@@ -93,7 +93,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
       assert(jobStartEvent === 1)
 
-      val rdd = replayer.rdds.head
+      val rdd = replayer.rdds(0)
       assert(rdd.isInstanceOf[ParallelCollectionRDD[_]])
       assert(rdd.context === sc)
     }
@@ -223,7 +223,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       // - makeRDD: ParallelCollectionRDD
       // - groupBy: MappedRDD, ShuffledRDD & MapPartitionsWithContextRDD
       assert(replayer.rdds.size === 4)
-      assert(replayer.rdds.last.collect() === expected)
+      assert(replayer.rdds(3).collect() === expected)
     }
   }
 }
