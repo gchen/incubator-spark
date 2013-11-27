@@ -141,6 +141,7 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     val dot = new PrintWriter(dotFile)
 
     dot.println("digraph {")
+    dot.println("node[shape=rectangle]")
 
     for (rdd <- rdds) {
       dot.print("%d [label=\"%d %s\"]".format(rdd.id, rdd.id, rddType(rdd)))
