@@ -9,6 +9,7 @@ import org.apache.spark.scheduler.SparkListenerTaskStart
 import org.apache.spark.util.Utils.~>
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
+import com.google.common.io.Files
 
 case class AssertionFailure(rddId: Int, partition: Int, element: Any)
 
@@ -137,14 +138,24 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
    * @return The absolution file path of the output file
    */
   def visualizeRDDs(path: String = null, format: String = "pdf") = {
-    val dotFile = File.createTempFile("spark-rdds-", "")
+    val extension = format
+    val basename =
+      if (path == null)
+        File.createTempFile("spark-rdds-", "").getAbsolutePath
+      else
+        Files.getNameWithoutExtension(path)
+
+    val outFilePath = basename + "." + extension
+    val dotFile = new File(basename + ".dot")
+    val dotFilePath = dotFile.getAbsolutePath
     val dot = new PrintWriter(dotFile)
 
     dot.println("digraph {")
-    dot.println("node[shape=rectangle]")
+    dot.println("  node[shape=rectangle]")
 
     for (rdd <- rdds) {
-      dot.print("%d [label=\"%d %s\"]".format(rdd.id, rdd.id, rddType(rdd)))
+      dot.println("  %d [label=\"#%d: %s\\n%s\"]"
+        .format(rdd.id, rdd.id, rdd.getClass.getSimpleName, rdd.origin))
       for (dep <- rdd.dependencies) {
         dot.println("  %d -> %d;".format(rdd.id, dep.rdd.id))
       }
@@ -152,9 +163,6 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
 
     dot.println("}")
     dot.close()
-
-    val dotFilePath = dotFile.getAbsolutePath
-    val outFilePath = if (path == null) dotFile.getAbsolutePath + "." + format else path
 
     Runtime.getRuntime.exec("dot -Grankdir=BT -T%s %s -o %s"
       .format(format, dotFilePath, outFilePath)).waitFor()
