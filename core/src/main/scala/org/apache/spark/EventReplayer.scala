@@ -72,36 +72,29 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   private[this] def collectJobRDDs(job: ActiveJob) {
     def collectJobStages(stage: Stage, visited: Set[Stage]): Set[Stage] =
       if (!visited.contains(stage)) {
-        val newVisited = visited + stage
-        val ancestorStages = for {
-          parent <- stage.parents.toSet[Stage]
-          ancestor <- collectJobStages(parent, newVisited)
-        } yield ancestor
-        ancestorStages + stage
+        (for {
+          parent <- stage.parents.toSet
+          ancestor <- collectJobStages(parent, visited + stage)
+        } yield ancestor) + stage
       }
       else {
-        Set.empty[Stage]
+        Set.empty
       }
 
     def collectStageRDDs(rdd: RDD[_], visited: Set[RDD[_]]): Set[RDD[_]] =
       if (!visited.contains(rdd)) {
-        val newVisited = visited + rdd
-        val ancestorRDDs = for {
-          dep <- rdd.dependencies.toSet[Dependency[_]]
-          ancestor <- dep match {
-            case _: ShuffleDependency[_, _] => Set.empty[RDD[_]]
-            case _ => collectStageRDDs(dep.rdd, newVisited)
-          }
-        } yield ancestor
-        ancestorRDDs + rdd
+        (for {
+          dep: NarrowDependency <- rdd.dependencies.toSet
+          ancestor <- collectStageRDDs(dep.rdd, visited + rdd)
+        } yield ancestor) + rdd
       }
       else {
-        Set.empty[RDD[_]]
+        Set.empty
       }
 
     for {
-      stage <- collectJobStages(job.finalStage, Set.empty[Stage])
-      rdd <- collectStageRDDs(stage.rdd, Set.empty[RDD[_]])
+      stage <- collectJobStages(job.finalStage, Set.empty)
+      rdd <- collectStageRDDs(stage.rdd, Set.empty)
     } {
       context.updateRddId(rdd.id)
       rdds(rdd.id) = rdd
@@ -152,7 +145,7 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     dot.println("digraph {")
     dot.println("  node[shape=rectangle]")
 
-    for (rdd <- rdds.values()) {
+    for ((_, rdd) <- rdds) {
       dot.println("  %d [label=\"#%d: %s\\n%s\"]"
         .format(rdd.id, rdd.id, rdd.getClass.getSimpleName, rdd.origin))
       for (dep <- rdd.dependencies) {
