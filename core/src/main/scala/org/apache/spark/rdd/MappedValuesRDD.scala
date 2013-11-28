@@ -19,7 +19,6 @@ package org.apache.spark.rdd
 
 
 import org.apache.spark.{TaskContext, Partition}
-import org.apache.spark.util.Utils.~>
 
 private[spark]
 class MappedValuesRDD[K, V, U](prev: RDD[_ <: Product2[K, V]], f: V => U)
@@ -32,8 +31,4 @@ class MappedValuesRDD[K, V, U](prev: RDD[_ <: Product2[K, V]], f: V => U)
   override def compute(split: Partition, context: TaskContext): Iterator[(K, U)] = {
     firstParent[Product2[K, V]].iterator(split, context).map { case Product2(k ,v) => (k, f(v)) }
   }
-
-  override private[spark] def dependenciesUpdated(g: RDD ~> RDD) =
-    new MappedValuesRDD[K, V, U](
-      g(firstParent.asInstanceOf[RDD[_ <: Product2[K, V]]]), f)
 }

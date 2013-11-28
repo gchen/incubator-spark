@@ -3,10 +3,9 @@ package org.apache.spark
 import java.io.{EOFException, File, FileInputStream, PrintWriter}
 import java.util.concurrent.ConcurrentHashMap
 
-import org.apache.spark.rdd.{ForallAssertionRDD, RDD}
+import org.apache.spark.rdd.{RDD}
 import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.SparkListenerTaskStart
-import org.apache.spark.util.Utils.~>
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
 import com.google.common.io.Files
@@ -168,29 +167,5 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     for (rdd <- rdds.values()) {
       println("#%d: %s %s".format(rdd.id, rddType(rdd), rdd.origin))
     }
-  }
-
-  private[this] def replace[T: ClassManifest](rdd: RDD[T], newRDD: RDD[T]) {
-    val canonicalId = rddIdToCanonical(rdd.id)
-    rdds(canonicalId) = newRDD
-    rddIdToCanonical(newRDD.id) = canonicalId
-
-    for (descendantRddIndex <- (canonicalId + 1) until rdds.size()) {
-      val updatedRDD = rdds(descendantRddIndex).dependenciesUpdated(new (RDD ~> RDD) {
-        def apply[U](dependency: RDD[U]) = {
-          rdds(rddIdToCanonical(dependency.id)).asInstanceOf[RDD[U]]
-        }
-      })
-
-      rdds(descendantRddIndex) = updatedRDD
-      rddIdToCanonical(updatedRDD.id) = descendantRddIndex
-    }
-  }
-
-  def assertForall[T: ClassManifest](rdd: RDD[_])(assertion: T => Boolean): RDD[T] = {
-    val typedRDD = rdd.asInstanceOf[RDD[T]]
-    val assertionRDD = new ForallAssertionRDD(typedRDD, assertion)
-    replace(typedRDD, assertionRDD)
-    assertionRDD
   }
 }

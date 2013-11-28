@@ -22,7 +22,6 @@ import java.io.{ObjectOutputStream, IOException}
 import scala.collection.mutable
 import scala.Some
 import scala.collection.mutable.ArrayBuffer
-import org.apache.spark.util.Utils.~>
 
 /**
  * Class that captures a coalesced RDD by essentially keeping track of parent partitions
@@ -112,9 +111,6 @@ class CoalescedRDD[T: ClassManifest](
   override def getPreferredLocations(partition: Partition): Seq[String] = {
     List(partition.asInstanceOf[CoalescedRDDPartition].preferredLocation)
   }
-
-  override private[spark] def dependenciesUpdated(g: RDD ~> RDD) =
-    new CoalescedRDD(g(firstParent), maxPartitions, balanceSlack)
 }
 
 /**

@@ -43,7 +43,6 @@ import org.apache.spark.util.{Utils, BoundedPriorityQueue}
 
 import org.apache.spark._
 import org.apache.spark.SparkContext._
-import org.apache.spark.util.Utils.~>
 
 /**
  * A Resilient Distributed Dataset (RDD), the basic abstraction in Spark. Represents an immutable,
@@ -1009,6 +1008,4 @@ abstract class RDD[T: ClassManifest](
       case _ =>
     }
   }
-
-  private[spark] def dependenciesUpdated(g: RDD ~> RDD): RDD[T] = this
 }

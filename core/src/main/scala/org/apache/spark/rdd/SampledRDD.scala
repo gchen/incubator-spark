@@ -23,7 +23,6 @@ import cern.jet.random.Poisson
 import cern.jet.random.engine.DRand
 
 import org.apache.spark.{Partition, TaskContext}
-import org.apache.spark.util.Utils.~>
 
 private[spark]
 class SampledRDDPartition(val prev: Partition, val seed: Int) extends Partition with Serializable {
@@ -64,7 +63,4 @@ class SampledRDD[T: ClassManifest](
       firstParent[T].iterator(split.prev, context).filter(x => (rand.nextDouble <= frac))
     }
   }
-
-  override private[spark] def dependenciesUpdated(g: RDD ~> RDD) =
-    new SampledRDD(g(firstParent), withReplacement, frac, seed)
 }
