@@ -92,10 +92,12 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
         Set.empty
       }
 
-    for {
+    val jobRDDs = for {
       stage <- collectJobStages(job.finalStage, Set.empty)
       rdd <- collectStageRDDs(stage.rdd, Set.empty)
-    } {
+    } yield rdd
+
+    for (rdd <- jobRDDs) {
       context.updateRddId(rdd.id)
       rdds(rdd.id) = rdd
       rddIdToCanonical(rdd.id) = rdd.id
