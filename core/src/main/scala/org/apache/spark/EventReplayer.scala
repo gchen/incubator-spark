@@ -72,7 +72,7 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     def collectJobStages(stage: Stage, visited: Set[Stage]): Set[Stage] =
       if (!visited.contains(stage)) {
         (for {
-          parent <- stage.parents.toSet
+          parent <- stage.parents.toSet[Stage]
           ancestor <- collectJobStages(parent, visited + stage)
         } yield ancestor) + stage
       }
@@ -83,8 +83,12 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     def collectStageRDDs(rdd: RDD[_], visited: Set[RDD[_]]): Set[RDD[_]] =
       if (!visited.contains(rdd)) {
         (for {
-          dep: NarrowDependency <- rdd.dependencies.toSet
-          ancestor <- collectStageRDDs(dep.rdd, visited + rdd)
+          dep <- rdd.dependencies.toSet[Dependency[_]]
+          ancestor <- dep match {
+            case _: NarrowDependency[_] => collectStageRDDs(dep.rdd, visited + rdd)
+            case _ => Set.empty[RDD[_]]
+          }
+
         } yield ancestor) + rdd
       }
       else {
