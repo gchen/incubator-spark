@@ -41,6 +41,16 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
     System.clearProperty("spark.eventLogging.eventLogPath")
   }
 
+  def runJob(sc: SparkContext)(job: SparkContext => Unit) {
+    val (listener, latch) = addJobEndListener(sc)
+    job(sc)
+    assert(awaitJobEnd(sc, listener, latch))
+  }
+
+  def makeReplayer(sc: SparkContext) = {
+    new EventReplayer(sc, eventLogFile.getAbsolutePath)
+  }
+
   def addJobEndListener(sc: SparkContext) = {
     val eventProcessed = new CountDownLatch(1)
     val listener = new SparkListener {
@@ -61,11 +71,11 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
   test("EventLogger should log events to log file") {
     withLocalSpark { sc =>
-      val (listener, latch) = addJobEndListener(sc)
-      sc.makeRDD(1 to 3).collect()
-      assert(awaitJobEnd(sc, listener, latch))
+      runJob(sc) {
+        _.makeRDD(1 to 3).collect()
+      }
 
-      val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
+      val replayer = makeReplayer(sc)
       assert(replayer.rdds.size === 1)
 
       val rdd = replayer.rdds(0)
@@ -76,14 +86,16 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
   test("EventLogger should receive new events from EventLogger") {
     withLocalSpark { sc =>
-      val (listener, latch) = addJobEndListener(sc)
-      val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
+      val replayer = makeReplayer(sc)
 
-      // No events are written in the event log yet
+      // No events were written in the event log yet
       assert(replayer.rdds.size === 0)
 
-      sc.makeRDD(1 to 3).collect()
-      assert(awaitJobEnd(sc, listener, latch))
+      runJob(sc) {
+        _.makeRDD(1 to 3).collect()
+      }
+
+      // One RDD created
       assert(replayer.rdds.size === 1)
 
       val jobStartEvent = replayer.events.count {
@@ -91,6 +103,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
         case _ => false
       }
 
+      // One job started
       assert(jobStartEvent === 1)
 
       val rdd = replayer.rdds(0)
@@ -101,16 +114,12 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
   test("RDD restored from event log can be reused") {
     withLocalSpark { sc =>
-      val (listener, latch) = addJobEndListener(sc)
+      runJob(sc) {
+        _.makeRDD(1 to 3).map(_ * 2).collect()
+      }
 
-      sc.makeRDD(1 to 3)
-        .map(_ * 2)
-        .collect()
-
-      assert(awaitJobEnd(sc, listener, latch))
-
-      // Restore RDDs and re-run the job
-      val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
+      // Restores RDDs and re-run the job
+      val replayer = makeReplayer(sc)
       val rdd = replayer.rdds(1)
       val r = rdd.collect()
       assert(r.toList === List(2, 4, 6))
@@ -119,21 +128,17 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
   test("Load event log from another session") {
     withLocalSpark { sc =>
-      val (listener, latch) = addJobEndListener(sc)
-
-      val r1 = sc.makeRDD(1 to 3)
-      val r2 = r1.map(_ * 2)
-      r2.collect()
-
-      assert(awaitJobEnd(sc, listener, latch))
+      runJob(sc) { sc =>
+        sc.makeRDD(1 to 3).map(_ * 2).collect()
+      }
     }
 
     disableEventLogging()
 
-    // Simulate another Spark shell session with event logging disabled
+    // Simulates another Spark shell session with event logging disabled
     withLocalSpark { sc =>
-      // Restore RDDs and re-run the job
-      val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
+      // Restores RDDs and re-run the job
+      val replayer = makeReplayer(sc)
       val resultRdd = replayer.rdds(1)
       assert(resultRdd.partitions != null)
       assert(resultRdd.collect().toList === List(2, 4, 6))
@@ -142,21 +147,19 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
   test("EventReplayer.visualizeRDDs should generate a PDF file") {
     withLocalSpark { sc =>
-      val (listener, latch) = addJobEndListener(sc)
+      runJob(sc) { sc =>
+        // Creates a complex RDD DAG
+        val r1 = sc.makeRDD(1 to 3)
+        val r2 = r1.map(_ * 2)
+        val r3 = sc.makeRDD(2 to 4)
+        val r4 = r1.cartesian(r3)
+        val r5 = r4.map { case (a, b) => a + b }
+        val r6 = r2.zip(r5)
+        r6.collect()
+      }
 
-      // Create a complex RDD DAG
-      val r1 = sc.makeRDD(1 to 3)
-      val r2 = r1.map(_ * 2)
-      val r3 = sc.makeRDD(2 to 4)
-      val r4 = r1.cartesian(r3)
-      val r5 = r4.map { case (a, b) => a + b }
-      val r6 = r2.zip(r5)
-      r6.collect()
-
-      assert(awaitJobEnd(sc, listener, latch))
-
-      // Restore RDDs and re-run the job
-      val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
+      // Restores RDDs and re-run the job
+      val replayer = makeReplayer(sc)
       val pdf = new File(replayer.visualizeRDDs())
       assert(pdf.exists())
       pdf.delete()
@@ -165,15 +168,11 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
   test("Task events should be written into event log") {
     withLocalSpark { sc =>
-      val (listener, latch) = addJobEndListener(sc)
+      runJob(sc) { sc =>
+        sc.makeRDD(1 to 4, 2).map(_ * 2).collect()
+      }
 
-      sc.makeRDD(1 to 4, 2)
-        .map(_ * 2)
-        .collect()
-
-      assert(awaitJobEnd(sc, listener, latch))
-
-      val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
+      val replayer = makeReplayer(sc)
       val taskEvents = replayer.events.collect {
         case event: SparkListenerTaskStart => event
       }
@@ -184,17 +183,13 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
   test("Exception failures should be recorded") {
     withLocalSpark { sc =>
-      val (listener, latch) = addJobEndListener(sc)
-
-      intercept[SparkException] {
-        sc.makeRDD(1 to 4, 2)
-          .map(_ => throw new DummyException())
-          .collect()
+      runJob(sc) { sc =>
+        intercept[SparkException] {
+          sc.makeRDD(1 to 4, 2).map(_ => throw new DummyException()).collect()
+        }
       }
 
-      assert(awaitJobEnd(sc, listener, latch))
-
-      val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
+      val replayer = makeReplayer(sc)
       val failures = replayer.taskEndReasons.values().collect {
         case failure: ExceptionFailure => failure
       }
@@ -209,15 +204,15 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
   test("Restore RDDs with wide dependencies") {
     withLocalSpark { sc =>
-      val (listener, latch) = addJobEndListener(sc)
+      var expected: Any = null
 
-      val expected = sc.makeRDD(1 to 4)
-                       .groupBy(n => if (n % 2 == 0) (0, n) else (1, n))
-                       .collect()
+      runJob(sc) { sc =>
+        expected = sc.makeRDD(1 to 4).groupBy {
+          n => if (n % 2 == 0) (0, n) else (1, n)
+        }.collect()
+      }
 
-      assert(awaitJobEnd(sc, listener, latch))
-
-      val replayer = new EventReplayer(sc, eventLogFile.getAbsolutePath)
+      val replayer = makeReplayer(sc)
 
       // 4 RDDs in total:
       // - makeRDD: ParallelCollectionRDD
