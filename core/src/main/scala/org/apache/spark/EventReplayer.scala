@@ -3,14 +3,12 @@ package org.apache.spark
 import java.io.{EOFException, File, FileInputStream, PrintWriter}
 import java.util.concurrent.ConcurrentHashMap
 
-import org.apache.spark.rdd.{RDD}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.SparkListenerTaskStart
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ArrayBuffer
 import com.google.common.io.Files
-
-case class AssertionFailure(rddId: Int, partition: Int, element: Any)
 
 class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   private[this] val stream = {
@@ -171,5 +169,29 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     for (rdd <- rdds.values()) {
       println("#%d: %s %s".format(rdd.id, rddType(rdd), rdd.origin))
     }
+  }
+
+  def assertForall[T](rdd: RDD[T], f: T => Boolean): RDD[T] = {
+    rdd.postCompute { (partition, _, iterator) =>
+      iterator.find(f).foreach { element =>
+        throw new AssertionError(
+          "assertForall failed. " +
+          "(element: %s, RDD class: %s, RDD ID: %d, Partition index: %d"
+            .stripMargin.format(element, rddType(rdd), rdd.id, partition.index))
+      }
+    }
+    rdd
+  }
+
+  def assertExists[T](rdd: RDD[T], f: T => Boolean): RDD[T] = {
+    rdd.postCompute { (partition, _, iterator) =>
+      if (iterator.find(f).isEmpty) {
+        throw new AssertionError(
+          "assertExists failed, no such element found. " +
+          "(RDD class: %s, RDD ID: %d, Partition index: %d)"
+            .format(rddType(rdd), rdd.id, partition.index))
+      }
+    }
+    rdd
   }
 }
