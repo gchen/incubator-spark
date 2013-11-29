@@ -117,6 +117,25 @@ abstract class RDD[T: ClassManifest](
   /** A friendly name for this RDD */
   var name: String = null
 
+  private var preComputeHook: Option[(Partition, TaskContext) => Unit] = None
+  private var postComputeHook: Option[(Partition, TaskContext, Iterator[T]) => Unit] = None
+
+  def preCompute(f: (Partition, TaskContext) => Unit) {
+    preComputeHook = Some(f)
+  }
+
+  def postCompute(f: (Partition, TaskContext, Iterator[T]) => Unit) {
+    postComputeHook = Some(f)
+  }
+
+  def clearPreCompute() {
+    preComputeHook = None
+  }
+
+  def clearPostCompute() {
+    postComputeHook = None
+  }
+
   /** Assign a name to this RDD */
   def setName(_name: String) = {
     name = _name
@@ -235,7 +254,10 @@ abstract class RDD[T: ClassManifest](
     if (isCheckpointed) {
       firstParent[T].iterator(split, context)
     } else {
-      compute(split, context)
+      preComputeHook.foreach(_(split, context))
+      val iter = compute(split, context)
+      postComputeHook.foreach(_(split, context, iter))
+      iter
     }
   }
 
