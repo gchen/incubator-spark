@@ -21,7 +21,6 @@ import java.util.Properties
 import org.apache.spark.util.{Utils, Distribution}
 import org.apache.spark.{Logging, SparkContext, TaskEndReason}
 import org.apache.spark.executor.TaskMetrics
-import org.apache.spark.rdd.RDD
 
 sealed trait SparkListenerEvents
 
@@ -80,6 +79,7 @@ trait SparkListener {
    * Called when a job ends
    */
   def onJobEnd(jobEnd: SparkListenerJobEnd) { }
+
 }
 
 /**

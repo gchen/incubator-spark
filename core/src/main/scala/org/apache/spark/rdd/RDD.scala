@@ -41,8 +41,8 @@ import org.apache.spark.partial.PartialResult
 import org.apache.spark.storage.StorageLevel
 import org.apache.spark.util.{Utils, BoundedPriorityQueue}
 
-import org.apache.spark._
 import org.apache.spark.SparkContext._
+import org.apache.spark._
 
 /**
  * A Resilient Distributed Dataset (RDD), the basic abstraction in Spark. Represents an immutable,
@@ -1029,7 +1029,7 @@ abstract class RDD[T: ClassManifest](
   private def readObject(stream: ObjectInputStream) {
     stream.defaultReadObject()
     stream match {
-      case EventLogInputStream(_, context) => sc = context
+      case s: EventLogInputStream => sc = s.context
       case _ =>
     }
   }

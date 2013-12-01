@@ -823,9 +823,4 @@ private[spark] object Utils extends Logging {
     return System.getProperties().clone()
       .asInstanceOf[java.util.Properties].toMap[String, String]
   }
-
-  /** The natural transformation trait */
-  trait ~>[-A[_], +B[_]] {
-    def apply[T](a: A[T]): B[T]
-  }
 }
