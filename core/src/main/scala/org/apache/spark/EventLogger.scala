@@ -9,37 +9,44 @@ import com.google.common.io.Files
 
 class EventLogger(eventLogPath: String) extends SparkListener with Logging {
   val logFile = new File(eventLogPath)
-  val stream = new EventLogOutputStream(new FileOutputStream(logFile))
+
+  var stream: Option[EventLogOutputStream] =
+    Some(new EventLogOutputStream(new FileOutputStream(logFile)))
+
   var replayer: Option[EventReplayer] = None
 
   private[this] def logEvent(event: SparkListenerEvents) {
     replayer.foreach(_.appendEvent(event))
-    stream.writeObject(event)
+    stream.synchronized {
+      stream.foreach(_.writeObject(event))
+    }
   }
 
   private[spark] def close() {
-    stream.close()
+    stream.synchronized {
+      stream.foreach(_.close())
+      stream = None
+    }
   }
 
   private[spark] def registerEventReplayer(replayer: EventReplayer) {
-    // Flush the log file, so that the replayer can see the most recent events
-    stream.flush()
-    this.replayer = Some(replayer)
+    stream.synchronized {
+      // Flush the log file, so that the replayer can see the most recent events
+      stream.foreach(_.flush())
+      this.replayer = Some(replayer)
+    }
   }
 
   def saveEventLogAs(path: String) {
-    Files.copy(logFile, new File(path))
+    stream.synchronized {
+      stream.foreach(_.flush())
+      Files.copy(logFile, new File(path))
+    }
   }
-
-  override def onStageCompleted(stageCompleted: StageCompleted) { }
-
-  override def onStageSubmitted(stageSubmitted: SparkListenerStageSubmitted) { }
 
   override def onTaskStart(taskStart: SparkListenerTaskStart) {
     logEvent(taskStart)
   }
-
-  override def onTaskGettingResult(taskGettingResult: SparkListenerTaskGettingResult) { }
 
   override def onTaskEnd(taskEnd: SparkListenerTaskEnd) {
     logEvent(taskEnd)
