@@ -43,8 +43,11 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
 
   def runJob(sc: SparkContext)(job: SparkContext => Unit) {
     val (listener, latch) = addJobEndListener(sc)
-    job(sc)
-    assert(awaitJobEnd(sc, listener, latch))
+    try {
+      job(sc)
+    } finally {
+      assert(awaitJobEnd(sc, listener, latch))
+    }
   }
 
   def makeReplayer(sc: SparkContext) = {
@@ -219,6 +222,42 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       // - groupBy: MappedRDD, ShuffledRDD & MapPartitionsWithContextRDD
       assert(replayer.rdds.size === 4)
       assert(replayer.rdds(3).collect() === expected)
+    }
+  }
+
+  test("assertForall should detect evil RDD element") {
+    withLocalSpark { sc =>
+      runJob(sc) {
+        _.makeRDD(1 to 4, 2).collect()
+      }
+
+      val replayer = makeReplayer(sc)
+
+      runJob(sc) { sc =>
+        val rdd = replayer.rdds(0)
+        val rddWithAssertion = replayer.assertForall[Int](rdd)(_ % 2 == 0)
+        intercept[SparkException] {
+          rddWithAssertion.collect()
+        }
+      }
+    }
+  }
+
+  test("assertExists should detect evil RDD") {
+    withLocalSpark { sc =>
+      runJob(sc) {
+        _.makeRDD(1 to 5 by 2, 2).collect()
+      }
+
+      val replayer = makeReplayer(sc)
+
+      runJob(sc) { sc =>
+        val rdd = replayer.rdds(0)
+        val rddWithAssertion = replayer.assertExists[Int](rdd)(_ % 2 == 0)
+        intercept[SparkException] {
+          rddWithAssertion.collect()
+        }
+      }
     }
   }
 }
