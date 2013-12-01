@@ -117,14 +117,17 @@ abstract class RDD[T: ClassManifest](
   /** A friendly name for this RDD */
   var name: String = null
 
-  private var preComputeHook: Option[(Partition, TaskContext) => Unit] = None
-  private var postComputeHook: Option[(Partition, TaskContext, Iterator[T]) => Unit] = None
+  type PreCompute = (Partition, TaskContext) => Unit
+  type PostCompute = (Partition, TaskContext, Iterator[T]) => Unit
 
-  def preCompute(f: (Partition, TaskContext) => Unit) {
+  private var preComputeHook: Option[PreCompute] = None
+  private var postComputeHook: Option[PostCompute] = None
+
+  def preCompute(f: PreCompute) {
     preComputeHook = Some(f)
   }
 
-  def postCompute(f: (Partition, TaskContext, Iterator[T]) => Unit) {
+  def postCompute(f: PostCompute) {
     postComputeHook = Some(f)
   }
 

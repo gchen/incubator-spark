@@ -171,27 +171,43 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     }
   }
 
-  def assertForall[T](rdd: RDD[T], f: T => Boolean): RDD[T] = {
-    rdd.postCompute { (partition, _, iterator) =>
-      iterator.find(f).foreach { element =>
-        throw new AssertionError(
-          "assertForall failed. " +
-          "(element: %s, RDD class: %s, RDD ID: %d, Partition index: %d"
-            .stripMargin.format(element, rddType(rdd), rdd.id, partition.index))
-      }
-    }
-    rdd
+  def assertForall[T: ClassManifest](rdd: RDD[_])(f: T => Boolean): RDD[T] = {
+    val typedRDD = rdd.asInstanceOf[RDD[T]]
+    typedRDD.postCompute(RDDAssertions.assertForall[T](rdd, f))
+    typedRDD
   }
 
-  def assertExists[T](rdd: RDD[T], f: T => Boolean): RDD[T] = {
-    rdd.postCompute { (partition, _, iterator) =>
-      if (iterator.find(f).isEmpty) {
+  def assertExists[T: ClassManifest](rdd: RDD[_])(f: T => Boolean): RDD[T] = {
+    val typedRDD = rdd.asInstanceOf[RDD[T]]
+    typedRDD.postCompute(RDDAssertions.assertExists[T](rdd, f))
+    typedRDD
+  }
+}
+
+private[spark] object RDDAssertions {
+  def assertForall[T: ClassManifest](rdd: RDD[_], f: T => Boolean): RDD[T]#PostCompute =
+    (partition: Partition, context: TaskContext, iterator: Iterator[T]) => {
+      for (element <- iterator if !f(element)) {
         throw new AssertionError(
-          "assertExists failed, no such element found. " +
-          "(RDD class: %s, RDD ID: %d, Partition index: %d)"
-            .format(rddType(rdd), rdd.id, partition.index))
+          """
+            |RDD forall-assertion error:
+            |  element: %s
+            |  RDD type: %s
+            |  RDD ID: %d
+            |  partition: %d
+          """.stripMargin.format(element, rdd.getClass.getSimpleName, rdd.id, partition.index))
       }
     }
-    rdd
-  }
+
+  def assertExists[T: ClassManifest](rdd: RDD[_], f: T => Boolean): RDD[T]#PostCompute =
+    (partition: Partition, context: TaskContext, iterator: Iterator[T]) =>
+      if (!iterator.exists(f)) {
+        throw new AssertionError(
+          """
+            |RDD exists-assertion error:
+            |  RDD type: %s
+            |  RDD ID: %d
+            |  partition: %d
+          """.stripMargin.format(rdd.getClass.getSimpleName, rdd.id, partition.index))
+      }
 }
