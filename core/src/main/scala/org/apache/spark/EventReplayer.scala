@@ -130,9 +130,10 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
    *
    * @param format Output file format, can be "pdf", "png", "svg", etc., default to "pdf".  Please
    *               refer to GraphViz documentation for all supported file formats.
+   * @param path Output file path.  If `null` then a random path would be used.
    * @return The absolution file path of the output file
    */
-  def visualizeRDDs(path: String = null, format: String = "pdf") = {
+  def visualizeRDDs(format: String = "pdf", path: String = null) = {
     val extension = format
     val basename =
       if (path == null)
