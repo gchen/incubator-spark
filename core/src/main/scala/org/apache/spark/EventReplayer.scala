@@ -185,27 +185,62 @@ class EventReplayer(context: SparkContext, eventLogPath: String) {
 private[spark] object RDDAssertions {
   def assertForall[T: ClassManifest](rdd: RDD[_], f: T => Boolean): RDD[T]#PostCompute =
     (partition: Partition, context: TaskContext, iterator: Iterator[T]) => {
-      for (element <- iterator if !f(element)) {
-        throw new AssertionError(
-          """
-            |RDD forall-assertion error:
-            |  element: %s
-            |  RDD type: %s
-            |  RDD ID: %d
-            |  partition: %d
-          """.stripMargin.format(element, rdd.getClass.getSimpleName, rdd.id, partition.index))
+      iterator.map { element =>
+        if (!f(element))
+          throw new AssertionError(
+            """
+              |RDD forall-assertion error:
+              |  element: %s
+              |  RDD type: %s
+              |  RDD ID: %d
+              |  partition: %d
+            """.stripMargin.format(element, rdd.getClass.getSimpleName, rdd.id, partition.index))
+        else
+          element
       }
     }
 
-  def assertExists[T: ClassManifest](rdd: RDD[_], f: T => Boolean): RDD[T]#PostCompute =
-    (partition: Partition, context: TaskContext, iterator: Iterator[T]) =>
-      if (!iterator.exists(f)) {
-        throw new AssertionError(
-          """
-            |RDD exists-assertion error:
-            |  RDD type: %s
-            |  RDD ID: %d
-            |  partition: %d
-          """.stripMargin.format(rdd.getClass.getSimpleName, rdd.id, partition.index))
+  def assertExists[T: ClassManifest](rdd: RDD[_], f: T => Boolean): RDD[T]#PostCompute = {
+    class ExistsIterator(underlying: Iterator[T], partition: Partition) extends Iterator[T] {
+      var target: Option[T] = None
+
+      def hasNext = underlying.hasNext
+
+      def next() =
+        if (hasNext) {
+          val value = underlying.next()
+          if (f(value)) {
+            updateTarget(value)
+          }
+          if (!hasNext) {
+            checkAssertion()
+          }
+          value
+        }
+        else {
+          underlying.next()
+        }
+
+      def updateTarget(value: T) {
+        if (target.isEmpty) {
+          target = Some(value)
+        }
       }
+
+      def checkAssertion() {
+        if (target.isEmpty) {
+          throw new AssertionError(
+            """
+              |RDD exists-assertion error:
+              |  RDD type: %s
+              |  RDD ID: %d
+              |  partition: %d
+            """.stripMargin.format(rdd.getClass.getSimpleName, rdd.id, partition.index))
+        }
+      }
+    }
+
+    (partition: Partition, context: TaskContext, iterator: Iterator[T]) =>
+      new ExistsIterator(iterator, partition)
+  }
 }

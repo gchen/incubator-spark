@@ -118,7 +118,7 @@ abstract class RDD[T: ClassManifest](
   var name: String = null
 
   type PreCompute = (Partition, TaskContext) => Unit
-  type PostCompute = (Partition, TaskContext, Iterator[T]) => Unit
+  type PostCompute = (Partition, TaskContext, Iterator[T]) => Iterator[T]
 
   private var preComputeHook: Option[PreCompute] = None
   private var postComputeHook: Option[PostCompute] = None
@@ -259,8 +259,10 @@ abstract class RDD[T: ClassManifest](
     } else {
       preComputeHook.foreach(_(split, context))
       val iter = compute(split, context)
-      postComputeHook.foreach(_(split, context, iter))
-      iter
+      postComputeHook match {
+        case Some(hook) => hook(split, context, iter)
+        case None => iter
+      }
     }
   }
 
