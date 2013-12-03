@@ -130,13 +130,13 @@ class EventReplayer(context: SparkContext, eventLogPath: String) {
    * @param path Output file path.  If `null` then a random path would be used.
    * @return The absolution file path of the output file
    */
-  def visualizeRDDs(format: String = "pdf", path: String = null) = {
+  def visualizeRDDs(format: String = "png", path: String = null) = {
     val extension = format
     val basename =
       if (path == null)
         File.createTempFile("spark-rdds-", "").getAbsolutePath
       else
-        Files.getNameWithoutExtension(path)
+        Files.getNameWithoutExtension(new File(path).getAbsolutePath)
 
     val outFilePath = basename + "." + extension
     val dotFile = new File(basename + ".dot")
