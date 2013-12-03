@@ -147,7 +147,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
     }
   }
 
-  test("EventReplayer.visualizeRDDs should generate a PDF file") {
+  ignore("EventReplayer.visualizeRDDs should generate a PDF file") {
     withLocalSpark { sc =>
       runJob(sc) { sc =>
         // Creates a complex RDD DAG
