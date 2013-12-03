@@ -7,7 +7,6 @@ import akka.util.duration._
 import org.apache.spark.rdd.ParallelCollectionRDD
 import org.apache.spark.scheduler._
 import org.scalatest.FunSuite
-import scala.collection.JavaConversions._
 
 class DummyException extends Exception
 
@@ -193,7 +192,7 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
       }
 
       val replayer = makeReplayer(sc)
-      val failures = replayer.taskEndReasons.values().collect {
+      val failures = replayer.taskEndReasons.values.collect {
         case failure: ExceptionFailure => failure
       }
 
@@ -243,6 +242,22 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
     }
   }
 
+  test("assertForall should keep silient if assertion holds") {
+    withLocalSpark { sc =>
+      runJob(sc) {
+        _.makeRDD(1 to 4, 2).collect()
+      }
+
+      val replayer = makeReplayer(sc)
+
+      runJob(sc) { sc =>
+        val rdd = replayer.rdds(0)
+        val rddWithAssertion = replayer.assertForall[Int](rdd)(_ => true)
+        assert(rddWithAssertion.collect().sameElements(1 to 4))
+      }
+    }
+  }
+
   test("assertExists should detect evil RDD") {
     withLocalSpark { sc =>
       runJob(sc) {
@@ -257,6 +272,22 @@ class EventLoggingSuite extends FunSuite with LocalSparkContext {
         intercept[SparkException] {
           rddWithAssertion.collect()
         }
+      }
+    }
+  }
+
+  test("assertExists should keep silient if assertion holds") {
+    withLocalSpark { sc =>
+      runJob(sc) {
+        _.makeRDD(1 to 4, 2).collect()
+      }
+
+      val replayer = makeReplayer(sc)
+
+      runJob(sc) { sc =>
+        val rdd = replayer.rdds(0)
+        val rddWithAssertion = replayer.assertExists[Int](rdd)(_ > 0)
+        assert(rddWithAssertion.collect().sameElements(1 to 4))
       }
     }
   }
