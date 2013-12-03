@@ -1,39 +1,37 @@
 package org.apache.spark
 
 import java.io.{EOFException, File, FileInputStream, PrintWriter}
-import java.util.concurrent.ConcurrentHashMap
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.scheduler._
 import org.apache.spark.scheduler.SparkListenerTaskStart
-import scala.collection.JavaConversions._
+import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import com.google.common.io.Files
 
-class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
-  private[this] val stream = {
-    if (eventLogPath == null) {
-      eventLogPath = System.getProperty("spark.eventLogging.eventLogPath")
+class EventReplayer(context: SparkContext, eventLogPath: String) {
+  def this(context: SparkContext) =
+    this(context, System.getProperty("spark.eventLogging.eventLogPath"))
 
-      require(
-        eventLogPath != null,
-        "Please specify the event log path, " +
-        "either by setting the \"spark.eventLogging.eventLogPath\", " +
-        "or by constructing EventReplayer with a legal event log path")
-    }
+  require(
+    eventLogPath != null,
+    "Please specify the event log path, " +
+      "either by setting the \"spark.eventLogging.eventLogPath\", " +
+      "or by constructing EventReplayer with a legal event log path")
 
+  private[this] val stream =
     new EventLogInputStream(new FileInputStream(new File(eventLogPath)), context)
-  }
 
   private[this] val _events = new ArrayBuffer[SparkListenerEvents]
 
-  private[this] val rddIdToCanonical = new ConcurrentHashMap[Int, Int]
+  val rdds =
+    new mutable.HashMap[Int, RDD[_]] with mutable.SynchronizedMap[Int, RDD[_]]
 
-  val rdds = new ConcurrentHashMap[Int, RDD[_]]
+  val tasks =
+    new mutable.HashMap[(Int, Int), Task[_]] with mutable.SynchronizedMap[(Int, Int), Task[_]]
 
-  val tasks = new ConcurrentHashMap[(Int, Int), Task[_]]
-
-  val taskEndReasons = new ConcurrentHashMap[Task[_], TaskEndReason]
+  val taskEndReasons =
+    new mutable.HashMap[Task[_], TaskEndReason] with mutable.SynchronizedMap[Task[_], TaskEndReason]
 
   context.eventLogger.foreach(_.registerEventReplayer(this))
   loadEvents()
@@ -52,7 +50,7 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     } yield task
 
   def taskWithId(stageId: Int, partitionId: Int): Option[Task[_]] =
-    Option(tasks.get((stageId, partitionId)))
+    tasks.get((stageId, partitionId))
 
   private[this] def loadEvents() {
     try {
@@ -101,7 +99,6 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
     for (rdd <- jobRDDs) {
       context.updateRddId(rdd.id)
       rdds(rdd.id) = rdd
-      rddIdToCanonical(rdd.id) = rdd.id
     }
   }
 
@@ -167,8 +164,8 @@ class EventReplayer(context: SparkContext, var eventLogPath: String = null) {
   }
 
   def printRDDs() {
-    for (rdd <- rdds.values()) {
-      println("#%d: %s %s".format(rdd.id, rddType(rdd), rdd.origin))
+    for ((id, rdd) <- rdds) {
+      println("#%d: %s %s".format(id, rddType(rdd), rdd.origin))
     }
   }
 
