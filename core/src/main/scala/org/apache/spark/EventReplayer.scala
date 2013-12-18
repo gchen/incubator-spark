@@ -31,6 +31,9 @@ class EventReplayer(context: SparkContext, eventLogPath: String) {
   val tasks =
     new mutable.HashMap[(Int, Int), Task[_]] with mutable.SynchronizedMap[(Int, Int), Task[_]]
 
+  val jobs =
+    new mutable.HashMap[Int, ActiveJob] with mutable.SynchronizedMap[Int, ActiveJob]
+
   val taskEndReasons =
     new mutable.HashMap[Task[_], TaskEndReason] with mutable.SynchronizedMap[Task[_], TaskEndReason]
 
@@ -65,33 +68,33 @@ class EventReplayer(context: SparkContext, eventLogPath: String) {
     }
   }
 
+  def collectJobStages(stage: Stage, visited: Set[Stage]): Set[Stage] =
+    if (!visited.contains(stage)) {
+      (for {
+        parent <- stage.parents.toSet[Stage]
+        ancestor <- collectJobStages(parent, visited + stage)
+      } yield ancestor) + stage
+    }
+    else {
+      Set.empty
+    }
+
+  def collectStageRDDs(rdd: RDD[_], visited: Set[RDD[_]]): Set[RDD[_]] =
+    if (!visited.contains(rdd)) {
+      (for {
+        dep <- rdd.dependencies.toSet[Dependency[_]]
+        ancestor <- dep match {
+          case _: NarrowDependency[_] => collectStageRDDs(dep.rdd, visited + rdd)
+          case _ => Set.empty[RDD[_]]
+        }
+
+      } yield ancestor) + rdd
+    }
+    else {
+      Set.empty
+    }
+
   private[this] def collectJobRDDs(job: ActiveJob) {
-    def collectJobStages(stage: Stage, visited: Set[Stage]): Set[Stage] =
-      if (!visited.contains(stage)) {
-        (for {
-          parent <- stage.parents.toSet[Stage]
-          ancestor <- collectJobStages(parent, visited + stage)
-        } yield ancestor) + stage
-      }
-      else {
-        Set.empty
-      }
-
-    def collectStageRDDs(rdd: RDD[_], visited: Set[RDD[_]]): Set[RDD[_]] =
-      if (!visited.contains(rdd)) {
-        (for {
-          dep <- rdd.dependencies.toSet[Dependency[_]]
-          ancestor <- dep match {
-            case _: NarrowDependency[_] => collectStageRDDs(dep.rdd, visited + rdd)
-            case _ => Set.empty[RDD[_]]
-          }
-
-        } yield ancestor) + rdd
-      }
-      else {
-        Set.empty
-      }
-
     val jobRDDs = for {
       stage <- collectJobStages(job.finalStage, Set.empty)
       rdd <- collectStageRDDs(stage.rdd, Set.empty)
@@ -115,6 +118,7 @@ class EventReplayer(context: SparkContext, eventLogPath: String) {
 
       case SparkListenerJobStart(job, _, _) =>
         // Records all RDDs within the job
+        jobs(job.jobId) = job
         collectJobRDDs(job)
 
       case _ =>
@@ -147,19 +151,43 @@ class EventReplayer(context: SparkContext, eventLogPath: String) {
     dot.println("digraph {")
     dot.println("  node[shape=rectangle]")
 
+    for {
+      job <- jobs.values
+      stage <- collectJobStages(job.finalStage, Set.empty)
+    } {
+      dot.println(s"  subgraph cluster${stage.id} {")
+
+      for (rdd <- collectStageRDDs(stage.rdd, Set.empty)) {
+        dot.println(s"    ${rdd.id}")
+      }
+
+      dot.println("  }")
+    }
+
     for ((_, rdd) <- rdds) {
-      dot.println("  %d [label=\"#%d: %s\\n%s\"]"
-        .format(rdd.id, rdd.id, rdd.getClass.getSimpleName, rdd.origin))
+      dot.println(
+        s"""
+          |  ${rdd.id} [
+          |    label="#${rdd.id}: ${rdd.getClass.getSimpleName}\\n${rdd.origin}"
+          |  ]
+        """.stripMargin)
+
       for (dep <- rdd.dependencies) {
-        dot.println("  %d -> %d;".format(rdd.id, dep.rdd.id))
+        dep match {
+          case _: ShuffleDependency[_, _] =>
+            dot.println(s"  ${rdd.id} -> ${dep.rdd.id} [color=red];")
+
+          case _ =>
+            dot.println(s"  ${rdd.id} -> ${dep.rdd.id};")
+        }
       }
     }
 
     dot.println("}")
     dot.close()
 
-    Runtime.getRuntime.exec("dot -Grankdir=BT -T%s %s -o %s"
-      .format(format, dotFilePath, outFilePath)).waitFor()
+    Runtime.getRuntime.exec(
+      s"dot -Grankdir=BT -T$format $dotFilePath -o $outFilePath").waitFor()
 
     outFilePath
   }
@@ -189,13 +217,13 @@ private[spark] object RDDAssertions {
       iterator.map { element =>
         if (!f(element))
           throw new AssertionError(
-            """
+            s"""
               |RDD forall-assertion error:
-              |  element: %s
-              |  RDD type: %s
-              |  RDD ID: %d
-              |  partition: %d
-            """.stripMargin.format(element, rdd.getClass.getSimpleName, rdd.id, partition.index))
+              |  element: $element
+              |  RDD type: ${rdd.getClass.getSimpleName}
+              |  RDD ID: ${rdd.id}
+              |  partition: ${partition.index}
+            """.stripMargin)
         else
           element
       }
@@ -231,12 +259,12 @@ private[spark] object RDDAssertions {
       def checkAssertion() {
         if (target.isEmpty) {
           throw new AssertionError(
-            """
+            s"""
               |RDD exists-assertion error:
-              |  RDD type: %s
-              |  RDD ID: %d
-              |  partition: %d
-            """.stripMargin.format(rdd.getClass.getSimpleName, rdd.id, partition.index))
+              |  RDD type: ${rdd.getClass.getSimpleName}
+              |  RDD ID: ${rdd.id}
+              |  partition: ${partition.index}
+            """.stripMargin)
         }
       }
     }
