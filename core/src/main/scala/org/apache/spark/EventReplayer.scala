@@ -8,6 +8,7 @@ import org.apache.spark.scheduler.SparkListenerTaskStart
 import scala.collection.mutable
 import scala.collection.mutable.ArrayBuffer
 import com.google.common.io.Files
+import scala.reflect.ClassTag
 
 class EventReplayer(context: SparkContext, eventLogPath: String) {
   def this(context: SparkContext) =
@@ -112,7 +113,7 @@ class EventReplayer(context: SparkContext, eventLogPath: String) {
       case SparkListenerTaskEnd(task, reason, _, _) =>
         taskEndReasons(task) = reason
 
-      case SparkListenerJobStart(job, _) =>
+      case SparkListenerJobStart(job, _, _) =>
         // Records all RDDs within the job
         collectJobRDDs(job)
 
@@ -169,13 +170,13 @@ class EventReplayer(context: SparkContext, eventLogPath: String) {
     }
   }
 
-  def assertForall[T: ClassManifest](rdd: RDD[_])(f: T => Boolean): RDD[T] = {
+  def assertForall[T: ClassTag](rdd: RDD[_])(f: T => Boolean): RDD[T] = {
     val typedRDD = rdd.asInstanceOf[RDD[T]]
     typedRDD.postCompute(RDDAssertions.assertForall[T](rdd, f))
     typedRDD
   }
 
-  def assertExists[T: ClassManifest](rdd: RDD[_])(f: T => Boolean): RDD[T] = {
+  def assertExists[T: ClassTag](rdd: RDD[_])(f: T => Boolean): RDD[T] = {
     val typedRDD = rdd.asInstanceOf[RDD[T]]
     typedRDD.postCompute(RDDAssertions.assertExists[T](rdd, f))
     typedRDD
@@ -183,7 +184,7 @@ class EventReplayer(context: SparkContext, eventLogPath: String) {
 }
 
 private[spark] object RDDAssertions {
-  def assertForall[T: ClassManifest](rdd: RDD[_], f: T => Boolean): RDD[T]#PostCompute =
+  def assertForall[T: ClassTag](rdd: RDD[_], f: T => Boolean): RDD[T]#PostCompute =
     (partition: Partition, context: TaskContext, iterator: Iterator[T]) => {
       iterator.map { element =>
         if (!f(element))
@@ -200,7 +201,7 @@ private[spark] object RDDAssertions {
       }
     }
 
-  def assertExists[T: ClassManifest](rdd: RDD[_], f: T => Boolean): RDD[T]#PostCompute = {
+  def assertExists[T: ClassTag](rdd: RDD[_], f: T => Boolean): RDD[T]#PostCompute = {
     class ExistsIterator(underlying: Iterator[T], partition: Partition) extends Iterator[T] {
       var target: Option[T] = None
 

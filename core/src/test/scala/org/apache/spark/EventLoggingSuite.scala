@@ -3,10 +3,10 @@ package org.apache.spark
 import java.io._
 import java.util.concurrent.{TimeUnit, CountDownLatch}
 
-import akka.util.duration._
 import org.apache.spark.rdd.ParallelCollectionRDD
 import org.apache.spark.scheduler._
 import org.scalatest.FunSuite
+import scala.concurrent.duration._
 
 class DummyException extends Exception
 
