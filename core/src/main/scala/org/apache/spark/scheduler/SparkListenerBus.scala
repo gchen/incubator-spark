@@ -63,6 +63,10 @@ private[spark] class SparkListenerBus() extends Logging {
     sparkListeners += listener
   }
 
+  def removeListener(listener: SparkListener) {
+    sparkListeners -= listener
+  }
+
   def post(event: SparkListenerEvents) {
     val eventAdded = eventQueue.offer(event)
     if (!eventAdded && !queueFullErrorMessageLogged) {
