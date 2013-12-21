@@ -30,8 +30,9 @@ private[spark] class ActiveJob(
     val func: (TaskContext, Iterator[_]) => _,
     val partitions: Array[Int],
     val callSite: String,
-    val listener: JobListener,
-    val properties: Properties) {
+    @transient val listener: JobListener,
+    val properties: Properties)
+  extends Serializable {
 
   val numPartitions = partitions.length
   val finished = Array.fill[Boolean](numPartitions)(false)
