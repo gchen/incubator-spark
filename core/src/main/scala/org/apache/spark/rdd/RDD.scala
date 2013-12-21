@@ -45,6 +45,7 @@ import org.apache.spark.util.{Utils, BoundedPriorityQueue}
 
 import org.apache.spark.SparkContext._
 import org.apache.spark._
+import java.io.ObjectInputStream
 
 /**
  * A Resilient Distributed Dataset (RDD), the basic abstraction in Spark. Represents an immutable,
@@ -259,7 +260,10 @@ abstract class RDD[T: ClassTag](
     if (isCheckpointed) {
       firstParent[T].iterator(split, context)
     } else {
-      val (newSplit, newContext) = preComputeHook.foreach(_(split, context))
+      val (newSplit, newContext) = preComputeHook match {
+        case Some(hook) => hook(split, context)
+        case None => (split, context)
+      }
       val iter = compute(newSplit, newContext)
       postComputeHook match {
         case Some(hook) => hook(newSplit, newContext, iter)
@@ -1037,4 +1041,11 @@ abstract class RDD[T: ClassTag](
     new JavaRDD(this)(elementClassTag)
   }
 
+  private def readObject(stream: ObjectInputStream) {
+    stream.defaultReadObject()
+    stream match {
+      case s: EventLogInputStream => sc = s.context
+      case _ =>
+    }
+  }
 }
