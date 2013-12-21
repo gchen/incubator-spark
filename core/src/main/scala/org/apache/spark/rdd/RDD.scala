@@ -125,6 +125,28 @@ abstract class RDD[T: ClassTag](
     this
   }
 
+  type PreCompute = (Partition, TaskContext) => (Partition, TaskContext)
+  type PostCompute = (Partition, TaskContext, Iterator[T]) => Iterator[T]
+
+  private var preComputeHook: Option[PreCompute] = None
+  private var postComputeHook: Option[PostCompute] = None
+
+  def preCompute(f: PreCompute) {
+    preComputeHook = Some(f)
+  }
+
+  def postCompute(f: PostCompute) {
+    postComputeHook = Some(f)
+  }
+
+  def clearPreCompute() {
+    preComputeHook = None
+  }
+
+  def clearPostCompute() {
+    postComputeHook = None
+  }
+
   /** User-defined generator of this RDD*/
   @transient var generator = Utils.getCallSiteInfo.firstUserClass
 
@@ -237,7 +259,12 @@ abstract class RDD[T: ClassTag](
     if (isCheckpointed) {
       firstParent[T].iterator(split, context)
     } else {
-      compute(split, context)
+      val (newSplit, newContext) = preComputeHook.foreach(_(split, context))
+      val iter = compute(newSplit, newContext)
+      postComputeHook match {
+        case Some(hook) => hook(newSplit, newContext, iter)
+        case None => iter
+      }
     }
   }
 
@@ -938,7 +965,7 @@ abstract class RDD[T: ClassTag](
   private var storageLevel: StorageLevel = StorageLevel.NONE
 
   /** Record user function generating this RDD. */
-  @transient private[spark] val origin = Utils.formatSparkCallSite
+  private[spark] val origin = Utils.formatSparkCallSite
 
   private[spark] def elementClassTag: ClassTag[T] = classTag[T]
 
