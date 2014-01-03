@@ -17,13 +17,13 @@
 
 package org.apache.spark.rdd
 
+import java.io.{ObjectOutputStream, ObjectInputStream}
 import java.util.Random
 
 import scala.collection.Map
 import scala.collection.JavaConversions.mapAsScalaMap
 import scala.collection.mutable.ArrayBuffer
 
-import scala.collection.mutable.HashMap
 import scala.reflect.{classTag, ClassTag}
 
 import org.apache.hadoop.io.BytesWritable
@@ -45,7 +45,6 @@ import org.apache.spark.util.{Utils, BoundedPriorityQueue}
 
 import org.apache.spark.SparkContext._
 import org.apache.spark._
-import java.io.ObjectInputStream
 
 /**
  * A Resilient Distributed Dataset (RDD), the basic abstraction in Spark. Represents an immutable,
@@ -126,25 +125,56 @@ abstract class RDD[T: ClassTag](
     this
   }
 
-  type PreCompute = (Partition, TaskContext) => (Partition, TaskContext)
-  type PostCompute = (Partition, TaskContext, Iterator[T]) => Iterator[T]
+  /** Type alias for the `preCompute` hook */
+  private[spark] type PreCompute = (Partition, TaskContext) => (Partition, TaskContext)
 
+  /** Type alias for the `postCompute` hook */
+  private[spark] type PostCompute = (Partition, TaskContext, Iterator[T]) => Iterator[T]
+
+  /** The `preCompute` hook. */
   private var preComputeHook: Option[PreCompute] = None
+
+  /** The `postCompute` hook. */
   private var postComputeHook: Option[PostCompute] = None
 
-  def preCompute(f: PreCompute) {
+  /**
+   * Adds a user customized hook that runs before [[org.apache.spark.rdd.RDD.compute]] runs.
+   *
+   * The type of the hook is `(Partition, TaskContext) => (Partition, TaskContext)`.  The
+   * [[org.apache.spark.Partition]] and [[org.apache.spark.TaskContext]] objects originally passed
+   * to [[org.apache.spark.rdd.RDD.compute()]] are passed to the hook, and replaced by those
+   * returned by the hook.
+   *
+   * @param f The hook function.
+   * @see [[org.apache.spark.rdd.RDD.clearPreCompute()]]
+   */
+  private[spark] def preCompute(f: PreCompute) {
     preComputeHook = Some(f)
   }
 
-  def postCompute(f: PostCompute) {
+  /**
+   * Adds a user customized hook that runs after [[org.apache.spark.rdd.RDD.compute]] runs.
+   *
+   * The type of the hook is `(Partition, TaskContext, Iterator[T]) => Iterator[T]`.  The iterator
+   * returned by [[org.apache.spark.rdd.RDD.compute()]] is passed to the hook as the third argument,
+   * and replaced by the iterator returned by the hook.
+   *
+   * This hook is currently used to implement various RDD debugging assertions.
+   *
+   * @param f The hook function.
+   * @see [[org.apache.spark.rdd.RDD.clearPostCompute()]]
+   */
+  private[spark] def postCompute(f: PostCompute) {
     postComputeHook = Some(f)
   }
 
-  def clearPreCompute() {
+  /** Clears the `preCompute` hook. */
+  private[spark] def clearPreCompute() {
     preComputeHook = None
   }
 
-  def clearPostCompute() {
+  /** Clears the `postCompute` hook. */
+  private[spark] def clearPostCompute() {
     postComputeHook = None
   }
 
@@ -969,7 +999,7 @@ abstract class RDD[T: ClassTag](
   private var storageLevel: StorageLevel = StorageLevel.NONE
 
   /** Record user function generating this RDD. */
-  private[spark] val origin = Utils.formatSparkCallSite
+  @transient private[spark] var origin = Utils.formatSparkCallSite
 
   private[spark] def elementClassTag: ClassTag[T] = classTag[T]
 
@@ -1044,7 +1074,17 @@ abstract class RDD[T: ClassTag](
   private def readObject(stream: ObjectInputStream) {
     stream.defaultReadObject()
     stream match {
-      case s: EventLogInputStream => sc = s.context
+      case s: EventLogInputStream =>
+        sc = s.context
+        origin = s.readObject().asInstanceOf[String]
+      case _ =>
+    }
+  }
+
+  private def writeObject(stream: ObjectOutputStream) {
+    stream.defaultWriteObject()
+    stream match {
+      case s: EventLogOutputStream => s.writeObject(origin)
       case _ =>
     }
   }

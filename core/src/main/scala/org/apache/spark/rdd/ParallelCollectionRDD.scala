@@ -91,12 +91,16 @@ private[spark] class ParallelCollectionRDD[T: ClassTag](
   // instead.
   // UPDATE: A parallel collection can be checkpointed to HDFS, which achieves this goal.
 
-  @transient private var splits: Array[Partition] = {
+  // Input data of `ParallelCollectionRDD`s are retrieved from its partitions.  Unfortunately, as
+  // `RDD.partitions_` is marked as `@transient`, this information is log when serialized.  So we
+  // have to store partition information here to save/restore it into/from `EventLogInputStream`s/
+  // `EventLogOutputStream`s and make it available for the event logging facilities.
+  @transient private var partitions_ : Array[Partition] = {
     val slices = ParallelCollectionRDD.slice(data, numSlices).toArray
     slices.indices.map(i => new ParallelCollectionPartition(id, i, slices(i))).toArray
   }
 
-  override def getPartitions: Array[Partition] = splits
+  override def getPartitions: Array[Partition] = partitions_
 
   override def compute(s: Partition, context: TaskContext) = {
     new InterruptibleIterator(context, s.asInstanceOf[ParallelCollectionPartition[T]].iterator)
@@ -110,7 +114,7 @@ private[spark] class ParallelCollectionRDD[T: ClassTag](
     stream.defaultReadObject()
     stream match {
       case _: EventLogInputStream =>
-        splits = stream.readObject().asInstanceOf[Array[Partition]]
+        partitions_ = stream.readObject().asInstanceOf[Array[Partition]]
       case _ =>
     }
   }
@@ -119,7 +123,7 @@ private[spark] class ParallelCollectionRDD[T: ClassTag](
     stream.defaultWriteObject()
     stream match {
       case _: EventLogOutputStream =>
-        stream.writeObject(splits)
+        stream.writeObject(partitions_)
       case _ =>
     }
   }
