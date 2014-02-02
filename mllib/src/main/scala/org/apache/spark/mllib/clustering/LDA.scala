@@ -153,12 +153,10 @@ object LDA {
     val numDocs = docMap.size
     val numTerms = wordMap.size
 
-    for (i <- 3 to 5) {
-      val (phi, theta) = LDA.train(data, k, 0.01, 0.01, i, numDocs, numTerms)
-      val pp = GibbsSampling.perplexity(data, phi, theta)
-      // println(s"final model Phi is $phi")
-      // println(s"final model Theta is $theta")
-      println(s"final mode perplexity is $pp")
-    }
+    val (phi, theta) = LDA.train(data, k, 0.01, 0.01, iter, numDocs, numTerms)
+    val pp = GibbsSampling.perplexity(data, phi, theta)
+    // println(s"final model Phi is $phi")
+    // println(s"final model Theta is $theta")
+    println(s"final mode perplexity is $pp")
   }
 }

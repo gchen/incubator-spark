@@ -44,7 +44,7 @@ object GibbsSampling extends Logging {
 
     val initialChosenTopics = data.map { case Document(docId, content) =>
       content.map { term =>
-        val topic = uniformDistSampler(new Random(docId), numTopics)
+        val topic = uniformDistSampler(new Random(docId ^ term), numTopics)
         initialParams += (docId, term, topic, 1)
         topic
       }
@@ -53,19 +53,21 @@ object GibbsSampling extends Logging {
     initialChosenTopics.foreach(_ => ())
 
     // Gibbs sampling
-    val (params, _, _) = Iterator.iterate((initialParams.value, initialChosenTopics, 0)) {
+    val (params, _, _) = Iterator.iterate((initialParams, initialChosenTopics, 0)) {
       case (lastParams, lastChosenTopics, i) =>
         logInfo("Start Gibbs sampling")
 
-        val params = sc.accumulable(lastParams)
+        val params = sc.accumulable(lastParams.value)
         val chosenTopics = data.zip(lastChosenTopics).map {
           case (Document(docId, content), topics) =>
             content.zip(topics).map { case (term, topic) =>
-              lastParams.update(docId, term, topic, -1)
-              val seed = docId
-              val chosenTopic = lastParams.dropOneDistSampler(
+              lastParams += (docId, term, topic, -1)
+
+              val seed = docId ^ term + i
+              val chosenTopic = lastParams.localValue.dropOneDistSampler(
                 docTopicSmoothing, topicTermSmoothing, term, docId, seed)
-              lastParams.update(docId, term, chosenTopic, 1)
+
+              lastParams += (docId, term, chosenTopic, 1)
               params += (docId, term, chosenTopic, 1)
 
               chosenTopic
@@ -79,10 +81,10 @@ object GibbsSampling extends Logging {
         chosenTopics.foreach(_ => ())
         lastChosenTopics.unpersist()
 
-        (params.value, chosenTopics, i + 1)
+        (params, chosenTopics, i + 1)
     }.drop(1 + numOuterIterations).next()
 
-    params
+    params.value
   }
 
   /**
